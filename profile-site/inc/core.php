@@ -192,7 +192,41 @@ function feature_list(): array
         'scramble' => ['عناوين بتأثير فك التشفير', 'عند ظهور كل عنوان تتلخبط حروفه ثم تترتب حرفاً حرفاً حتى يكتمل.'],
         'code'     => ['نافذة كود تكتب نفسها', 'نافذة برمجية في قسم النبذة يُكتب فيها الكود تلقائياً بألوان، ثم تظهر نتيجة التشغيل.'],
         'orbit'    => ['التقنيات تدور حول صورتك', 'رموز أدواتك (من قائمة الأدوات) تدور في مدار حول صورة النبذة.'],
+        'speed'    => ['سرعة فائقة', 'الخطوط من موقعك بدل جوجل مع تحميل مسبق، وملفات تصميم مضغوطة، فتفتح الصفحة أسرع.'],
+        'waves'    => ['فواصل موجية بين الأقسام', 'خلفية مختلفة لبعض الأقسام تفصلها أمواج ناعمة متحركة بدل الخطوط المستقيمة.'],
+        'progress' => ['شريط تقدّم القراءة ونقاط التنقل', 'خط رفيع أعلى الصفحة يمتلئ مع النزول، ونقاط جانبية للتنقل بين الأقسام (الكمبيوتر).'],
+        'aurora'   => ['خلفية أورورا متحركة', 'تدرجات ألوان تتموّج ببطء خلف الواجهة وقسم النبذة والتواصل.'],
+        'smooth'   => ['تمرير ناعم فاخر', 'الصفحة تنزل بانسيابية عند استعمال عجلة الماوس (الكمبيوتر فقط، الجوال يبقى طبيعياً).'],
+        'bigtext'  => ['نص عملاق متحرك', 'جملة كبيرة بخط مفرّغ تتحرك قبل التذييل وتتسارع مع التمرير. النص يُعدّل من تعديل الصفحة.'],
+        'share'    => ['زر مشاركة مع QR', 'زر يفتح نافذة لمشاركة رابطك (واتساب، فيسبوك، تيليجرام، X)، ونسخ الرابط، وكود QR قابل للتحميل.'],
+        'analytics' => ['إحصائيات متقدمة', 'دول الزوار، الأقسام الأكثر قراءة، عمق التمرير، وقت القراءة، ومراحل نموذج التواصل.'],
     ];
+}
+
+/* ───────────── ثيمات الألوان ───────────── */
+
+// الاسم ← [الاسم بالعربي، اللون الأساسي، لون الخلفية الفاتحة، لون الخلفية الليلية]
+function palette_list(): array
+{
+    return [
+        'crimson' => ['أحمر قرمزي (الأصلي)', '#c8202b', '#f6f0eb', '#120809'],
+        'madix'   => ['أزرق MADIX', '#1f6fe5', '#edf0f5', '#080b10'],
+        'gold'    => ['ذهبي ملكي', '#b8892c', '#f4f1ec', '#0f0c07'],
+        'emerald' => ['زمردي', '#0f9d6b', '#edf4f1', '#080f0c'],
+        'violet'  => ['بنفسجي', '#7a3ff2', '#f0eef4', '#0b0910'],
+    ];
+}
+
+// الثيم الحالي (يمكن معاينة ثيم آخر مؤقتاً عبر ?palette=gold بدون حفظ)
+function current_palette(): string
+{
+    $list = palette_list();
+    $preview = req_str($_GET, 'palette');
+    if ($preview !== '' && isset($list[$preview])) {
+        return $preview;
+    }
+    $p = (string) (content()['palette'] ?? 'crimson');
+    return isset($list[$p]) ? $p : 'crimson';
 }
 
 function feature_on(string $key): bool
@@ -506,12 +540,26 @@ function stats_blank(): array
         'total_views'   => 0,
         'total_uniques' => 0,
         'days'          => [],
-        'today'         => ['d' => '', 'h' => []],
+        'today'         => today_blank(''),
         'sources'       => [],
         'devices'       => [],
         'referrers'     => [],
         'clicks'        => [],
+        // الإحصائيات المتقدمة
+        'countries'     => [],
+        'sections'      => [],
+        'depth'         => [],
+        'engage'        => ['n' => 0, 'ms' => 0],
+        'funnel'        => ['view' => 0, 'start' => 0, 'submit' => 0],
+        'abandon'       => [],
+        'langs'         => [],
     ];
+}
+
+// سجل اليوم: h بصمات الزوار، c من حُسبت دولته، q عدد الزيارات المفصّلة لكل زائر (حماية من التكرار)
+function today_blank(string $d): array
+{
+    return ['d' => $d, 'h' => [], 'c' => [], 'q' => []];
 }
 
 // يصلح أي ملف إحصائيات تالف أو معدَّل يدوياً حتى لا تتعطل الصفحة بسببه
@@ -525,6 +573,16 @@ function stats_normalize(array $s): array
     }
     if (!is_string($s['today']['d'] ?? null) || !is_array($s['today']['h'] ?? null)) {
         $s['today'] = $b['today'];
+    }
+    foreach (['c', 'q'] as $k) {
+        if (!isset($s['today'][$k]) || !is_array($s['today'][$k])) {
+            $s['today'][$k] = [];
+        }
+    }
+    foreach (['engage', 'funnel'] as $k) {
+        foreach ($b[$k] as $sub => $zero) {
+            $s[$k][$sub] = (int) ($s[$k][$sub] ?? $zero);
+        }
     }
     foreach ($s['days'] as $d => $row) {
         if (!is_array($row)) {
@@ -560,7 +618,7 @@ function track_view(): void
     store_update('stats', function (array $s) use ($ua, $today, $referer, $source, $device) {
         $s = stats_normalize($s);
         if ($s['today']['d'] !== $today) {
-            $s['today'] = ['d' => $today, 'h' => []];
+            $s['today'] = today_blank($today);
         }
         $hash = substr(hash('sha256', $s['salt'] . '|' . client_ip() . '|' . $ua . '|' . $today), 0, 16);
         $isNew = !in_array($hash, $s['today']['h'], true);
@@ -614,7 +672,7 @@ function click_keys(): array
     $keys = [
         'whatsapp' => 'واتساب', 'facebook' => 'فيسبوك', 'tiktok' => 'تيك توك', 'instagram' => 'إنستغرام',
         'github' => 'GitHub', 'linkedin' => 'لينكدإن', 'email' => 'البريد الإلكتروني', 'phone' => 'اتصال هاتفي',
-        'form' => 'نموذج التواصل', 'lang' => 'زر اللغة', 'chat' => 'زر المحادثة',
+        'form' => 'نموذج التواصل', 'lang' => 'زر اللغة', 'chat' => 'زر المحادثة', 'share' => 'زر المشاركة',
     ];
     foreach (content()['projects']['items'] as $p) {
         $keys[project_key($p)] = (string) ($p['name'] ?? '');
@@ -632,6 +690,135 @@ function track_click(string $key): void
         $s['clicks'][$key] = (int) ($s['clicks'][$key] ?? 0) + 1;
         return $s;
     });
+}
+
+/* ───────────── الإحصائيات المتقدمة ───────────── */
+
+// الأقسام التي نقيس قراءتها، وخانات النموذج المسموحة
+const READ_SECTIONS = ['home', 'about', 'why', 'services', 'sectors', 'stats', 'projects', 'reviews', 'contact', 'cta'];
+const FORM_FIELDS   = ['name', 'whatsapp', 'email', 'company', 'service', 'budget', 'timeline', 'details'];
+
+// رمز الدولة: من Cloudflare إن كان الطلب قادماً منه فعلاً، وإلا من المنطقة الزمنية لجهاز الزائر
+function visitor_country(string $tz): string
+{
+    $cf = strtoupper(trim((string) ($_SERVER['HTTP_CF_IPCOUNTRY'] ?? '')));
+    if (preg_match('/^[A-Z]{2}$/', $cf) && $cf !== 'XX' && $cf !== 'T1') {
+        $remote = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+        foreach (CF_RANGES as $range) {
+            if (ip_in_cidr($remote, $range)) {
+                return $cf;
+            }
+        }
+    }
+    if ($tz !== '' && preg_match('#^[A-Za-z_]+(/[A-Za-z0-9_+\-]+){1,2}$#', $tz)) {
+        try {
+            $loc = (new DateTimeZone($tz))->getLocation();
+            $cc = is_array($loc) ? strtoupper((string) ($loc['country_code'] ?? '')) : '';
+            if (preg_match('/^[A-Z]{2}$/', $cc) && $cc !== '??') {
+                return $cc;
+            }
+        } catch (Exception $e) {
+            return 'ZZ';
+        }
+    }
+    return 'ZZ';
+}
+
+function track_visit_details(array $v): void
+{
+    if (is_bot(user_agent()) || !empty($_COOKIE['sq_owner']) || !feature_on('analytics')) {
+        return;
+    }
+    $tz       = substr((string) ($v['tz'] ?? ''), 0, 60);
+    $country  = visitor_country($tz);
+    $sections = array_values(array_intersect(READ_SECTIONS, array_map('strval', is_array($v['s'] ?? null) ? $v['s'] : [])));
+    $depth    = max(0, min(100, (int) ($v['d'] ?? 0)));
+    $ms       = max(0, min(1800000, (int) ($v['t'] ?? 0)));
+    $lang     = ($v['l'] ?? '') === 'ar' ? 'ar' : 'en';
+    $f        = is_array($v['f'] ?? null) ? $v['f'] : [];
+    $fView    = !empty($f['v']);
+    $fStart   = !empty($f['s']);
+    $fSubmit  = !empty($f['ok']);
+    $fLast    = in_array((string) ($f['last'] ?? ''), FORM_FIELDS, true) ? (string) $f['last'] : '';
+    $today    = date('Y-m-d');
+
+    store_update('stats', function (array $s) use ($country, $sections, $depth, $ms, $lang, $fView, $fStart, $fSubmit, $fLast, $today) {
+        $s = stats_normalize($s);
+        if ($s['today']['d'] !== $today) {
+            $s['today'] = today_blank($today);
+        }
+        $hash = substr(hash('sha256', $s['salt'] . '|' . client_ip() . '|' . user_agent() . '|' . $today), 0, 16);
+        // حماية من الإغراق: 40 زيارة مفصّلة كحد أقصى لكل زائر في اليوم
+        $q = (int) ($s['today']['q'][$hash] ?? 0);
+        if ($q >= 40 || count($s['today']['q']) >= 20000) {
+            return null;
+        }
+        $s['today']['q'][$hash] = $q + 1;
+
+        // الدولة واللغة: مرة واحدة لكل زائر في اليوم
+        if (!in_array($hash, $s['today']['c'], true)) {
+            $s['today']['c'][] = $hash;
+            if (isset($s['countries'][$country]) || count($s['countries']) < 250) {
+                $s['countries'][$country] = (int) ($s['countries'][$country] ?? 0) + 1;
+            }
+            $s['langs'][$lang] = (int) ($s['langs'][$lang] ?? 0) + 1;
+        }
+        foreach ($sections as $sec) {
+            $s['sections'][$sec] = (int) ($s['sections'][$sec] ?? 0) + 1;
+        }
+        $bucket = $depth >= 90 ? '100' : ($depth >= 75 ? '75' : ($depth >= 50 ? '50' : '25'));
+        $s['depth'][$bucket] = (int) ($s['depth'][$bucket] ?? 0) + 1;
+        $s['engage']['n']++;
+        $s['engage']['ms'] += $ms;
+        if ($fView || $fStart || $fSubmit) {
+            $s['funnel']['view']++;
+        }
+        if ($fStart || $fSubmit) {
+            $s['funnel']['start']++;
+        }
+        if ($fSubmit) {
+            $s['funnel']['submit']++;
+        } elseif ($fStart && $fLast !== '') {
+            $s['abandon'][$fLast] = (int) ($s['abandon'][$fLast] ?? 0) + 1;
+        }
+        return $s;
+    });
+}
+
+// اسم الدولة بالعربي (للوحة التحكم) وعلمها
+function country_name(string $cc): string
+{
+    $map = [
+        'PS' => 'فلسطين', 'IL' => 'فلسطين المحتلة', 'JO' => 'الأردن', 'EG' => 'مصر', 'SA' => 'السعودية', 'AE' => 'الإمارات',
+        'QA' => 'قطر', 'KW' => 'الكويت', 'BH' => 'البحرين', 'OM' => 'عُمان', 'YE' => 'اليمن', 'IQ' => 'العراق', 'SY' => 'سوريا',
+        'LB' => 'لبنان', 'LY' => 'ليبيا', 'TN' => 'تونس', 'DZ' => 'الجزائر', 'MA' => 'المغرب', 'SD' => 'السودان', 'MR' => 'موريتانيا',
+        'SO' => 'الصومال', 'DJ' => 'جيبوتي', 'KM' => 'جزر القمر', 'TR' => 'تركيا', 'IR' => 'إيران', 'PK' => 'باكستان', 'IN' => 'الهند',
+        'BD' => 'بنغلاديش', 'ID' => 'إندونيسيا', 'MY' => 'ماليزيا', 'CN' => 'الصين', 'JP' => 'اليابان', 'KR' => 'كوريا الجنوبية',
+        'US' => 'الولايات المتحدة', 'CA' => 'كندا', 'MX' => 'المكسيك', 'BR' => 'البرازيل', 'AR' => 'الأرجنتين', 'GB' => 'بريطانيا',
+        'IE' => 'أيرلندا', 'FR' => 'فرنسا', 'DE' => 'ألمانيا', 'NL' => 'هولندا', 'BE' => 'بلجيكا', 'CH' => 'سويسرا', 'AT' => 'النمسا',
+        'IT' => 'إيطاليا', 'ES' => 'إسبانيا', 'PT' => 'البرتغال', 'SE' => 'السويد', 'NO' => 'النرويج', 'DK' => 'الدنمارك',
+        'FI' => 'فنلندا', 'PL' => 'بولندا', 'GR' => 'اليونان', 'RO' => 'رومانيا', 'RU' => 'روسيا', 'UA' => 'أوكرانيا', 'AU' => 'أستراليا',
+        'NZ' => 'نيوزيلندا', 'ZA' => 'جنوب أفريقيا', 'NG' => 'نيجيريا', 'KE' => 'كينيا', 'ET' => 'إثيوبيا', 'AF' => 'أفغانستان',
+        'AZ' => 'أذربيجان', 'CY' => 'قبرص', 'SG' => 'سنغافورة', 'TH' => 'تايلاند', 'PH' => 'الفلبين', 'VN' => 'فيتنام', 'ZZ' => 'غير معروفة',
+    ];
+    return $map[$cc] ?? $cc;
+}
+
+function country_flag(string $cc): string
+{
+    if (!preg_match('/^[A-Z]{2}$/', $cc) || $cc === 'ZZ') {
+        return '🌐';
+    }
+    // فلسطين المحتلة تُعرض بعلم فلسطين
+    if ($cc === 'IL') {
+        $cc = 'PS';
+    }
+    $out = '';
+    foreach (str_split($cc) as $ch) {
+        $cp = 127397 + ord($ch); // حروف المؤشر الإقليمي U+1F1E6...
+        $out .= chr(0xF0 | ($cp >> 18)) . chr(0x80 | (($cp >> 12) & 0x3F)) . chr(0x80 | (($cp >> 6) & 0x3F)) . chr(0x80 | ($cp & 0x3F));
+    }
+    return $out;
 }
 
 /* ───────────── رسائل نموذج التواصل ───────────── */

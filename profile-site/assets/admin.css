@@ -1101,3 +1101,172 @@ html * {
   justify-self: start;
   margin-top: 6px;
 }
+
+/* ───────── الإحصائيات المتقدمة ───────── */
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 28px 0 14px;
+  font-size: 19px;
+}
+
+.section-title .i {
+  color: var(--cyan);
+}
+
+.section-title .off {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.kpis--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+  .kpis--3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.funnel {
+  display: grid;
+  gap: 10px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.funnel li {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  isolation: isolate;
+}
+
+.funnel li::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--w);
+  z-index: -1;
+  background: linear-gradient(90deg, rgba(229, 56, 63, 0.35), rgba(229, 56, 63, 0.12));
+}
+
+[dir="rtl"] .funnel li::before {
+  inset: 0 0 0 auto;
+  background: linear-gradient(270deg, rgba(229, 56, 63, 0.35), rgba(229, 56, 63, 0.12));
+}
+
+.funnel b {
+  margin-inline-start: auto;
+  font-size: 18px;
+}
+
+.funnel small {
+  width: 100%;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.panel .sub {
+  margin: 18px 0 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.muted.small {
+  margin-top: 10px;
+  font-size: 12.5px;
+}
+
+/* ───────── اختيار ألوان الموقع ───────── */
+
+.fx-group {
+  margin: 14px 0 2px;
+  color: var(--muted);
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+
+.pal {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.pal__item {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 14px 10px 12px;
+  border-radius: 14px;
+  border: 1.5px solid var(--line);
+  background: var(--panel-2);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.pal__item:hover {
+  transform: translateY(-2px);
+}
+
+.pal__item input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.pal__item:has(input:checked) {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(229, 56, 63, 0.18);
+}
+
+.pal__item input:focus-visible + .pal__swatch {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+.pal__swatch {
+  display: flex;
+  overflow: hidden;
+  width: 74px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.pal__swatch i {
+  flex: 1;
+  background: var(--b);
+}
+
+.pal__swatch i:nth-child(2) {
+  background: var(--m);
+}
+
+.pal__swatch i:nth-child(3) {
+  background: var(--d);
+}
+
+.pal__item b {
+  font-size: 14px;
+}
+
+.pal__item a {
+  color: var(--cyan);
+  font-size: 12.5px;
+}

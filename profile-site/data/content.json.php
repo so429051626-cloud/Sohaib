@@ -348,12 +348,25 @@
         "output": "تم! نظامك جاهز للانطلاق",
         "output_en": "Done! Your system is ready to launch"
     },
+    "bigtext": {
+        "text": "لنبنِ شيئاً عظيماً معاً",
+        "text_en": "Let's build something great"
+    },
+    "palette": "crimson",
     "features": {
         "tilt": "1",
         "cursor": "1",
         "scramble": "1",
         "code": "1",
-        "orbit": "1"
+        "orbit": "1",
+        "speed": "1",
+        "waves": "1",
+        "progress": "1",
+        "aurora": "1",
+        "smooth": "1",
+        "bigtext": "1",
+        "share": "1",
+        "analytics": "1"
     },
     "avatar": "",
     "hero_photo": "",

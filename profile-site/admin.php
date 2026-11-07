@@ -61,6 +61,9 @@ function content_schema(): array
             'lines'    => ['أسطر الكود (كل سطر في سطر، يفضّل 5 إلى 9 أسطر)', 'code'],
             'output'   => ['نتيجة التشغيل التي تظهر بعد الكتابة', 'text', 0, TR],
         ]],
+        'bigtext' => ['title' => 'النص العملاق المتحرك (قبل التذييل)', 'note' => 'يُشغَّل ويُطفأ من الإعدادات ← ميزات الصفحة. جملة قصيرة تبدو أجمل.', 'fields' => [
+            'text' => ['النص', 'text', 0, TR],
+        ]],
         'why' => ['title' => 'لماذا تعمل معي', 'fields' => [
             'kicker' => ['العنوان الصغير', 'text', 0, TR],
             'title'  => ['عنوان القسم', 'text', 0, TR],
@@ -651,14 +654,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             case 'save_features':
                 $tab = 'settings';
                 $in = isset($_POST['features']) && is_array($_POST['features']) ? $_POST['features'] : [];
-                $ok = store_update('content', function (array $c) use ($in) {
+                $pal = req_str($_POST, 'palette');
+                $ok = store_update('content', function (array $c) use ($in, $pal) {
                     $c = merge_content(default_content(), $c);
                     foreach (array_keys(feature_list()) as $k) {
                         $c['features'][$k] = (($in[$k] ?? '') === '1') ? '1' : '0';
                     }
+                    if (isset(palette_list()[$pal])) {
+                        $c['palette'] = $pal;
+                    }
                     return $c;
                 });
-                flash($ok ? 'تم حفظ إعدادات الميزات، وهي ظاهرة الآن على الصفحة.' : SAVE_FAILED, $ok ? 'ok' : 'err');
+                flash($ok ? 'تم حفظ الإعدادات، وهي ظاهرة الآن على الصفحة.' : SAVE_FAILED, $ok ? 'ok' : 'err');
                 break;
             case 'reset_stats':
                 $tab = 'settings';
@@ -978,7 +985,80 @@ $c = content();
       <?php else: ?><p class="empty">لا توجد بيانات بعد.</p><?php endif; ?>
     </section>
   </div>
-  <p class="note"><?= icon('shield-check') ?>زياراتك أنت من هذا الجهاز لا تُحتسب، وكذلك زيارات محركات البحث والروبوتات. "الزائر" يُحسب مرة واحدة في اليوم.</p>
+  <?php
+      $eng = $s['engage'];
+      $avgMs = $eng['n'] > 0 ? (int) round($eng['ms'] / $eng['n']) : 0;
+      $avgTxt = sprintf('%d:%02d', intdiv($avgMs, 60000), intdiv($avgMs % 60000, 1000));
+      $fn = $s['funnel'];
+      $pct = function (int $a, int $b): string { return $b > 0 ? round($a * 100 / $b) . '%' : '—'; };
+      $secLabels = ['home' => 'الواجهة', 'about' => 'نبذة عني', 'why' => 'لماذا تعمل معي', 'services' => 'الخدمات', 'sectors' => 'القطاعات', 'stats' => 'الأرقام', 'projects' => 'الأعمال', 'reviews' => 'آراء العملاء', 'contact' => 'التواصل والنموذج', 'cta' => 'التذييل'];
+      $fieldLabels = ['name' => 'الاسم', 'whatsapp' => 'رقم واتساب', 'email' => 'البريد الإلكتروني', 'company' => 'اسم المشروع أو الشركة', 'service' => 'الخدمة المطلوبة', 'budget' => 'الميزانية', 'timeline' => 'المدة', 'details' => 'تفاصيل المشروع'];
+  ?>
+  <h2 class="section-title"><?= icon('trending-up') ?>إحصائيات متقدمة <?php if (!feature_on('analytics')): ?><small class="off">(متوقفة من الإعدادات)</small><?php endif; ?></h2>
+  <section class="kpis kpis--3">
+    <article class="kpi">
+      <span class="kpi__icon"><?= icon('clock') ?></span>
+      <p>متوسط وقت القراءة</p><b dir="ltr"><?= e($avgTxt) ?></b>
+      <small>من <?= n($eng['n']) ?> زيارة مسجّلة</small>
+    </article>
+    <article class="kpi">
+      <span class="kpi__icon"><?= icon('send') ?></span>
+      <p>أكملوا النموذج</p><b><?= e($pct($fn['submit'], $fn['start'])) ?></b>
+      <small>من الذين بدأوا الكتابة (<?= n($fn['submit']) ?> من <?= n($fn['start']) ?>)</small>
+    </article>
+    <article class="kpi">
+      <span class="kpi__icon"><?= icon('globe') ?></span>
+      <p>عدد الدول</p><b><?= n(count(array_filter(array_keys($s['countries']), function ($k) { return $k !== 'ZZ'; }))) ?></b>
+      <small>زوار من دول مختلفة</small>
+    </article>
+  </section>
+  <div class="cols">
+    <section class="panel">
+      <header class="panel__head"><h2><?= icon('globe') ?>من أي دولة الزوار</h2></header>
+      <?= bars(array_map('intval', $s['countries']), function ($k) { return country_flag($k) . '  ' . country_name($k); }) ?>
+    </section>
+    <section class="panel">
+      <header class="panel__head"><h2><?= icon('eye') ?>الأقسام الأكثر قراءة</h2></header>
+      <?php $secs = array_map('intval', $s['sections']); ?>
+      <?php if ($secs && $eng['n'] > 0): arsort($secs); ?>
+      <ul class="hbars">
+        <?php foreach ($secs as $k => $v): $pc = min(100, round($v * 100 / $eng['n'])); ?>
+        <li><div class="hbars__row"><span><?= e($secLabels[$k] ?? $k) ?></span><b><?= $pc ?>% <small>(<?= n($v) ?>)</small></b></div><div class="hbars__track"><i style="width:<?= max(1.5, $pc) ?>%"></i></div></li>
+        <?php endforeach; ?>
+      </ul>
+      <p class="muted small">النسبة = كم زيارة من كل 100 قرأت هذا القسم (ظهر أمام الزائر أكثر من ثانية).</p>
+      <?php else: ?><p class="empty">لا توجد بيانات بعد.</p><?php endif; ?>
+    </section>
+    <section class="panel">
+      <header class="panel__head"><h2><?= icon('inbox') ?>مراحل نموذج التواصل</h2></header>
+      <?php $steps = [['شاهدوا النموذج', $fn['view']], ['بدأوا الكتابة', $fn['start']], ['أرسلوا الطلب', $fn['submit']]]; ?>
+      <ol class="funnel">
+        <?php foreach ($steps as $i => [$lbl, $val]): $w = $fn['view'] > 0 ? max(4, round($val * 100 / $fn['view'])) : 4; ?>
+        <li style="--w:<?= $w ?>%"><span><?= e($lbl) ?></span><b><?= n($val) ?></b><?php if ($i > 0): ?><small><?= e($pct($val, $steps[$i - 1][1])) ?> من المرحلة السابقة</small><?php endif; ?></li>
+        <?php endforeach; ?>
+      </ol>
+      <?php $ab = array_map('intval', $s['abandon']); if ($ab): ?>
+      <h3 class="sub">أين توقف من لم يُكمل</h3>
+      <?= bars($ab, function ($k) use ($fieldLabels) { return $fieldLabels[$k] ?? $k; }) ?>
+      <?php endif; ?>
+    </section>
+    <section class="panel">
+      <header class="panel__head"><h2><?= icon('chart-column') ?>إلى أين ينزل الزوار</h2></header>
+      <?php $dl = ['25' => 'ربع الصفحة', '50' => 'نصف الصفحة', '75' => 'ثلاثة أرباع', '100' => 'حتى النهاية']; $dep = []; foreach ($dl as $k => $l) { $dep[$k] = (int) ($s['depth'][$k] ?? 0); } ?>
+      <?php if (array_sum($dep) > 0): ?>
+      <ul class="hbars">
+        <?php $tot = array_sum($dep); foreach ($dl as $k => $l): $pc = round($dep[$k] * 100 / $tot, 1); ?>
+        <li><div class="hbars__row"><span><?= e($l) ?></span><b><?= n($dep[$k]) ?> <small>(<?= $pc ?>%)</small></b></div><div class="hbars__track"><i style="width:<?= max(1.5, $pc) ?>%"></i></div></li>
+        <?php endforeach; ?>
+      </ul>
+      <?php else: ?><p class="empty">لا توجد بيانات بعد.</p><?php endif; ?>
+      <?php $lg = array_map('intval', $s['langs']); if ($lg): ?>
+      <h3 class="sub">لغة التصفح</h3>
+      <?= bars($lg, function ($k) { return $k === 'ar' ? 'العربية' : 'English'; }) ?>
+      <?php endif; ?>
+    </section>
+  </div>
+  <p class="note"><?= icon('shield-check') ?>زياراتك أنت من هذا الجهاز لا تُحتسب، وكذلك زيارات محركات البحث والروبوتات. "الزائر" يُحسب مرة واحدة في اليوم. الدولة تُعرف من المنطقة الزمنية لجهاز الزائر (أو من Cloudflare إن وُجد) دون أي خدمة خارجية.</p>
 
   <?php elseif ($tab === 'content'): ?>
   <form method="post" action="<?= e($self) ?>" class="editor">
@@ -1134,18 +1214,38 @@ $c = content();
 
   <?php else: ?>
   <section class="panel">
-    <header class="panel__head"><h2><?= icon('sparkles') ?>ميزات الصفحة</h2></header>
-    <p class="muted">شغّل أو أطفئ أي ميزة ثم اضغط "حفظ". التغيير يظهر على الصفحة فوراً.</p>
+    <header class="panel__head"><h2><?= icon('sparkles') ?>ميزات الصفحة وألوانها</h2></header>
+    <p class="muted">اختر ألوان الموقع، وشغّل أو أطفئ أي ميزة، ثم اضغط "حفظ الإعدادات". التغيير يظهر على الصفحة فوراً. زر "معاينة" يفتح الصفحة بالألوان قبل الحفظ.</p>
     <form method="post" action="<?= e($self) ?>" class="fx-list">
       <?= csrf_field() ?><input type="hidden" name="action" value="save_features">
-      <?php foreach (feature_list() as $k => [$label, $desc]): $on = feature_on($k); ?>
+      <h3 class="fx-group">ألوان الموقع</h3>
+      <div class="pal">
+        <?php $curPal = (string) ($c['palette'] ?? 'crimson'); foreach (palette_list() as $pk => [$plabel, $pmain, $pbg, $pdark]): ?>
+        <label class="pal__item">
+          <input type="radio" name="palette" value="<?= e($pk) ?>"<?= $pk === $curPal ? ' checked' : '' ?>>
+          <span class="pal__swatch" style="--m:<?= e($pmain) ?>;--b:<?= e($pbg) ?>;--d:<?= e($pdark) ?>" aria-hidden="true"><i></i><i></i><i></i></span>
+          <b><?= e($plabel) ?></b>
+          <a href="./?palette=<?= e($pk) ?>" target="_blank" rel="noopener">معاينة</a>
+        </label>
+        <?php endforeach; ?>
+      </div>
+      <?php
+      $groups = [
+          'الحركات والتأثيرات' => ['tilt', 'cursor', 'scramble', 'smooth', 'bigtext'],
+          'الشكل والتصميم'     => ['waves', 'aurora', 'progress', 'orbit', 'code'],
+          'الأداء والإضافات'   => ['speed', 'share', 'analytics'],
+      ];
+      $fl = feature_list();
+      foreach ($groups as $gTitle => $keys): ?>
+      <h3 class="fx-group"><?= e($gTitle) ?></h3>
+      <?php foreach ($keys as $k): [$label, $desc] = $fl[$k]; $on = feature_on($k); ?>
       <label class="fx">
         <span class="fx__text"><b><?= e($label) ?></b><small><?= e($desc) ?></small></span>
         <input type="checkbox" name="features[<?= e($k) ?>]" value="1"<?= $on ? ' checked' : '' ?>>
         <span class="switch" aria-hidden="true"><i></i></span>
       </label>
-      <?php endforeach; ?>
-      <button class="btn btn--primary" type="submit"><?= icon('save') ?>حفظ الميزات</button>
+      <?php endforeach; endforeach; ?>
+      <button class="btn btn--primary" type="submit"><?= icon('save') ?>حفظ الإعدادات</button>
     </form>
   </section>
   <div class="cols">

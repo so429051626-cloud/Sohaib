@@ -138,7 +138,7 @@
     // الوضع الفاتح هو الافتراضي دائماً، والليلي فقط عند اختيار الزائر له
     var isDark = function () { return root.getAttribute('data-theme') === 'dark'; };
     var paintMeta = function () {
-      var color = isDark() ? '#120809' : '#f6f0eb';
+      var color = getComputedStyle(root).getPropertyValue('--bg').trim() || (isDark() ? '#120809' : '#f6f0eb');
       $$('meta[name="theme-color"]').forEach(function (m) { m.setAttribute('content', color); });
     };
     paintMeta();
@@ -458,12 +458,17 @@
     var visible = true;
     var started = false;
     var raf = 0;
+    var skip = false;
 
+    var tiltEl = $('.hero__tilt');
+    var halo = $('.hero__halo');
+    var word = $('.hero__word');
     var paint = function () {
-      hero.style.setProperty('--ry', (cur.x * 9).toFixed(2) + 'deg');
-      hero.style.setProperty('--rx', (-cur.y * 6).toFixed(2) + 'deg');
-      hero.style.setProperty('--tx', (cur.x * 14).toFixed(1) + 'px');
-      hero.style.setProperty('--ty', (cur.y * 9).toFixed(1) + 'px');
+      var tx = cur.x * 14;
+      var ty = cur.y * 9;
+      if (tiltEl) tiltEl.style.transform = 'rotateX(' + (-cur.y * 6).toFixed(2) + 'deg) rotateY(' + (cur.x * 9).toFixed(2) + 'deg) translate3d(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px,0)';
+      if (halo) halo.style.transform = 'translate3d(' + (tx * -1.6).toFixed(1) + 'px,' + (ty * -1.3).toFixed(1) + 'px,0)';
+      if (word) word.style.transform = 'translate3d(' + (tx * -0.45).toFixed(1) + 'px,' + (ty * -0.3).toFixed(1) + 'px,0)';
       if (glare) {
         glare.style.setProperty('--gx', (50 + cur.x * 40).toFixed(1) + '%');
         glare.style.setProperty('--gy', (28 + cur.y * 26).toFixed(1) + '%');
@@ -485,7 +490,9 @@
       }
       cur.x += (target.x - cur.x) * 0.075;
       cur.y += (target.y - cur.y) * 0.075;
-      paint();
+      // في السكون نرسم إطاراً ونترك إطاراً (حركة هادئة أصلاً) لتوفير البطارية
+      skip = mode === 'idle' ? !skip : false;
+      if (!skip) paint();
       raf = requestAnimationFrame(loop);
     };
     var start = function () {
@@ -546,6 +553,14 @@
     }
     doc.addEventListener('visibilitychange', start);
     whenReady(function () { started = true; start(); });
+  });
+
+  safe(function () {
+    var ph = $('.about__photo');
+    if (!ph || !('IntersectionObserver' in window)) return;
+    new IntersectionObserver(function (en) {
+      ph.classList.toggle('is-paused', !en[0].isIntersecting);
+    }, { rootMargin: '120px 0px' }).observe(ph);
   });
 
   /* ───────── 6) مؤشر ماوس مخصص + أزرار مغناطيسية (الكمبيوتر فقط) ───────── */
@@ -811,5 +826,349 @@
     } else {
       go();
     }
+  });
+  /* ═════════════ الدفعة الثالثة: التمرير الناعم، التقدّم، المشاركة، الإحصائيات ═════════════ */
+
+  /* ───────── 10) تمرير ناعم فاخر (عجلة الماوس على الكمبيوتر فقط) ───────── */
+  var lenis = null;
+  safe(function () {
+    if (!FX.smooth || reduce || !finePointer || typeof window.Lenis !== 'function') return;
+    lenis = new window.Lenis({
+      lerp: 0.1,
+      smoothWheel: true,
+      syncTouch: false,
+      wheelMultiplier: 1,
+      prevent: function (node) {
+        return !!(node && node.closest && node.closest('.code-win__body, textarea, select, .chat__pop, .share, .nav__links, [data-lenis-prevent]'));
+      }
+    });
+    var raf = function (t) { lenis.raf(t); requestAnimationFrame(raf); };
+    requestAnimationFrame(raf);
+    if (root.classList.contains('is-loading')) {
+      lenis.stop();
+      whenReady(function () { lenis.start(); });
+    }
+    // روابط الأقسام: انتقال ناعم مع مراعاة ارتفاع الشريط العلوي
+    doc.addEventListener('click', function (e) {
+      var a = e.target.closest ? e.target.closest('a[href^="#"]') : null;
+      if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
+      var id = a.getAttribute('href');
+      if (id === '#main') return; // رابط التخطي يبقى طبيعياً
+      var target = id === '#' || id === '#home' || id === '#top' ? 0 : doc.querySelector(id);
+      if (target === null) return;
+      e.preventDefault();
+      lenis.scrollTo(target, { offset: target === 0 ? 0 : -86, duration: 1.3 });
+    });
+  });
+
+  /* ───────── 8) شريط تقدّم القراءة ونقاط التنقل ───────── */
+  safe(function () {
+    if (!FX.progress) return;
+    var bar = $('.readbar i');
+    var dots = $$('.dots a[data-dot]');
+    var sections = $$('[data-section]');
+    var last = '';
+    var update = function () {
+      var max = doc.documentElement.scrollHeight - window.innerHeight;
+      if (bar) bar.style.setProperty('--rp', (max > 0 ? Math.min(1, window.scrollY / max) : 0).toFixed(4));
+      if (!dots.length) return;
+      var line = window.innerHeight * 0.38;
+      var key = sections.length ? sections[0].getAttribute('data-section') : 'home';
+      sections.forEach(function (s) { if (s.getBoundingClientRect().top <= line) key = s.getAttribute('data-section'); });
+      if (window.innerHeight + window.scrollY >= doc.documentElement.scrollHeight - 4) key = 'contact';
+      if (key === last) return;
+      last = key;
+      dots.forEach(function (d) { d.classList.toggle('is-on', d.getAttribute('data-dot') === key); });
+    };
+    onScroll(update);
+    update();
+  });
+
+  /* ───────── 12) النص العملاق: يتسارع مع التمرير مثل الشرائط ───────── */
+  safe(function () {
+    if (!FX.bigtext || reduce) return;
+    var tracks = $$('.mega__track');
+    if (!tracks.length || !tracks[0].getAnimations) return;
+    var lastY = window.scrollY;
+    var boost = 0;
+    var raf = 0;
+    var setRate = function (r) {
+      tracks.forEach(function (t) { t.getAnimations().forEach(function (a) { a.playbackRate = r; }); });
+    };
+    var decay = function () {
+      boost *= 0.93;
+      if (boost < 0.02) { boost = 0; setRate(1); raf = 0; return; }
+      setRate(1 + boost);
+      raf = requestAnimationFrame(decay);
+    };
+    onScroll(function () {
+      var y = window.scrollY;
+      boost = Math.min(7, boost + Math.abs(y - lastY) / 40);
+      lastY = y;
+      if (!raf) raf = requestAnimationFrame(decay);
+    });
+  });
+
+  /* ───────── 18) زر المشاركة مع QR ───────── */
+  safe(function () {
+    var box = doc.getElementById('share');
+    var cfg = data.share || {};
+    if (!FX.share || !box || !cfg.url) return;
+    var opener = null;
+    var qrBox = doc.getElementById('share-qr');
+    var qrReady = false;
+    var text = (cfg.title || '') + '\n' + cfg.url;
+    var nets = {
+      whatsapp: 'https://wa.me/?text=' + encodeURIComponent(text),
+      facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(cfg.url),
+      telegram: 'https://t.me/share/url?url=' + encodeURIComponent(cfg.url) + '&text=' + encodeURIComponent(cfg.title || ''),
+      x: 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(cfg.url) + '&text=' + encodeURIComponent(cfg.title || '')
+    };
+    $$('[data-net]', box).forEach(function (a) {
+      a.href = nets[a.getAttribute('data-net')] || '#';
+      a.setAttribute('data-track', 'share');
+    });
+    var native = $('[data-native]', box);
+    if (native && navigator.share) {
+      native.hidden = false;
+      native.addEventListener('click', function () {
+        navigator.share({ title: cfg.title, url: cfg.url }).catch(function () {});
+      });
+    }
+
+    var drawQR = function () {
+      if (qrReady || !window.qrcode || !qrBox) return;
+      try {
+        var q = window.qrcode(0, 'H'); // تصحيح أخطاء عالٍ حتى يبقى مقروءاً مع الشعار في الوسط
+        q.addData(cfg.url);
+        q.make();
+        var n = q.getModuleCount();
+        var path = '';
+        for (var r = 0; r < n; r++) {
+          for (var c = 0; c < n; c++) {
+            if (q.isDark(r, c)) path += 'M' + c + ' ' + r + 'h1v1h-1z';
+          }
+        }
+        var ink = getComputedStyle(root).getPropertyValue('--btn').trim() || '#220f11';
+        if (root.getAttribute('data-theme') === 'dark') ink = getComputedStyle(root).getPropertyValue('--btn-fg').trim() || '#220f11';
+        qrBox.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + n + ' ' + n + '" shape-rendering="crispEdges"><path fill="' + ink + '" d="' + path + '"/></svg>';
+        qrReady = true;
+      } catch (err) { /* */ }
+    };
+    var loadQR = function () {
+      if (window.qrcode) { drawQR(); return; }
+      if (doc.getElementById('qr-lib')) return;
+      var sc = doc.createElement('script');
+      sc.id = 'qr-lib';
+      sc.src = cfg.qr;
+      sc.onload = drawQR;
+      doc.head.appendChild(sc);
+    };
+
+    var open = function (from) {
+      opener = from || null;
+      box.hidden = false;
+      root.classList.add('share-open');
+      if (lenis) lenis.stop();
+      else doc.body.style.overflow = 'hidden';
+      loadQR();
+      var x = $('.share__x', box);
+      if (x) x.focus();
+    };
+    var close = function () {
+      if (box.hidden) return;
+      box.hidden = true;
+      root.classList.remove('share-open');
+      if (lenis) lenis.start();
+      else doc.body.style.overflow = '';
+      if (opener && opener.focus) opener.focus();
+    };
+    $$('[data-share]').forEach(function (b) {
+      b.addEventListener('click', function () { open(b); });
+      b.setAttribute('data-track', 'share');
+    });
+    $$('[data-share-close]', box).forEach(function (b) { b.addEventListener('click', close); });
+    doc.addEventListener('keydown', function (e) {
+      if (box.hidden) return;
+      if (e.key === 'Escape') close();
+      if (e.key === 'Tab') {
+        // إبقاء التنقل بلوحة المفاتيح داخل النافذة
+        var f = $$('button:not([hidden]), a[href]', box);
+        if (!f.length) return;
+        var first = f[0];
+        var lastEl = f[f.length - 1];
+        if (e.shiftKey && doc.activeElement === first) { e.preventDefault(); lastEl.focus(); }
+        else if (!e.shiftKey && doc.activeElement === lastEl) { e.preventDefault(); first.focus(); }
+      }
+    });
+
+    // نسخ الرابط
+    var copyBtn = $('[data-copy]', box);
+    if (copyBtn) {
+      var label = $('b', copyBtn);
+      copyBtn.addEventListener('click', function () {
+        var ok = function () {
+          copyBtn.classList.add('is-done');
+          if (label) label.textContent = (data.ui && data.ui.copied) || '✓';
+          setTimeout(function () {
+            copyBtn.classList.remove('is-done');
+            if (label) label.textContent = (data.ui && data.ui.copy) || 'Copy';
+          }, 1800);
+        };
+        var fallback = function () {
+          var t = doc.createElement('textarea');
+          t.value = cfg.url;
+          t.setAttribute('readonly', '');
+          t.style.position = 'fixed';
+          t.style.opacity = '0';
+          doc.body.appendChild(t);
+          t.select();
+          try { doc.execCommand('copy'); ok(); } catch (err) { /* */ }
+          t.remove();
+        };
+        if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(cfg.url).then(ok, fallback);
+        else fallback();
+      });
+    }
+
+    // تحميل كود QR كصورة PNG بخلفية بيضاء والشعار في الوسط
+    var dl = $('[data-qr-download]', box);
+    if (dl) {
+      dl.addEventListener('click', function () {
+        var svg = qrBox && qrBox.querySelector('svg');
+        if (!svg) return;
+        var size = 1024;
+        var pad = 72;
+        var canvas = doc.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, size, size);
+        var img = new Image();
+        img.onload = function () {
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(img, pad, pad, size - pad * 2, size - pad * 2);
+          var logo = $('.share__logo svg', box);
+          var finish = function () {
+            canvas.toBlob(function (blob) {
+              if (!blob) return;
+              var a = doc.createElement('a');
+              a.href = URL.createObjectURL(blob);
+              a.download = cfg.file || 'qr.png';
+              doc.body.appendChild(a);
+              a.click();
+              setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+            }, 'image/png');
+          };
+          if (!logo) { finish(); return; }
+          var cs = getComputedStyle(root);
+          var clone = logo.cloneNode(true);
+          clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+          $$('.mark__a', clone).forEach(function (el) { el.setAttribute('fill', cs.getPropertyValue('--red').trim() || '#c8202b'); });
+          $$('.mark__b', clone).forEach(function (el) { el.setAttribute('fill', cs.getPropertyValue('--red-2').trim() || '#a3141e'); });
+          var limg = new Image();
+          limg.onload = function () {
+            var b = 190;
+            ctx.imageSmoothingEnabled = true;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect((size - b) / 2, (size - b) / 2, b, b);
+            ctx.drawImage(limg, (size - 120) / 2, (size - 120) / 2, 120, 120);
+            finish();
+          };
+          limg.onerror = finish;
+          limg.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(clone));
+        };
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(svg));
+      });
+    }
+  });
+
+  /* ───────── الإحصائيات المتقدمة: ملخص واحد لكل زيارة يُرسل عند مغادرة الصفحة ───────── */
+  safe(function () {
+    if (!FX.analytics || !navigator.sendBeacon) return;
+    var visit = { s: {}, d: 0, t: 0, l: data.lang || 'en', f: { v: 0, s: 0, ok: 0, last: '' } };
+    var tz = '';
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { tz = ''; }
+    var shownAt = doc.hidden ? 0 : nowMs();
+    var activeMs = 0;
+    var sent = false;
+
+    // الأقسام المقروءة: ظاهرة 40% على الأقل لأكثر من ثانية
+    if ('IntersectionObserver' in window) {
+      var timers = {};
+      var rio = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          var key = en.target.getAttribute('data-read');
+          // الأقسام الأطول من الشاشة: يكفي أن تملأ جزءاً كبيراً منها
+          var big = en.intersectionRect.height >= window.innerHeight * 0.45;
+          if (en.isIntersecting && (en.intersectionRatio >= 0.4 || big)) {
+            if (!timers[key] && !visit.s[key]) timers[key] = setTimeout(function () { visit.s[key] = 1; }, 1100);
+          } else if (timers[key]) {
+            clearTimeout(timers[key]);
+            timers[key] = 0;
+          }
+        });
+      }, { threshold: [0, 0.1, 0.25, 0.4, 0.6, 0.8, 1] });
+      $$('[data-read]').forEach(function (el) { rio.observe(el); });
+
+      // النموذج: شاهده؟
+      var form = $('form.form');
+      if (form) {
+        new IntersectionObserver(function (es) {
+          if (es[0].isIntersecting) visit.f.v = 1;
+        }, { threshold: 0.5 }).observe(form);
+      }
+    }
+
+    // عمق التمرير
+    onScroll(function () {
+      var max = doc.documentElement.scrollHeight;
+      var d = Math.round(((window.scrollY + window.innerHeight) / max) * 100);
+      if (d > visit.d) visit.d = Math.min(100, d);
+    });
+
+    // النموذج: بدأ الكتابة؟ وأي خانة كانت الأخيرة؟
+    var f2 = $('form.form');
+    if (f2) {
+      f2.addEventListener('focusin', function (e) {
+        var n = e.target && e.target.name;
+        if (n && n !== 'website' && n !== 'lang') visit.f.last = n;
+      });
+      f2.addEventListener('input', function (e) {
+        var n = e.target && e.target.name;
+        if (n && n !== 'website') { visit.f.s = 1; visit.f.last = n; }
+      });
+      f2.addEventListener('submit', function () {
+        // إرسال صحيح = الاسم والتفاصيل مكتوبان (نفس شرط النموذج). يُعلَّم فوراً لأن واتساب يفتح في نافذة جديدة
+        var nm = f2.elements.namedItem('name');
+        var dt = f2.elements.namedItem('details');
+        if (nm && dt && String(nm.value).trim() && String(dt.value).trim()) visit.f.ok = 1;
+      });
+    }
+
+    var send = function () {
+      if (sent) return;
+      if (shownAt) { activeMs += nowMs() - shownAt; shownAt = 0; }
+      sent = true;
+      var payload = {
+        tz: tz,
+        s: Object.keys(visit.s),
+        d: visit.d || Math.round(((window.scrollY + window.innerHeight) / doc.documentElement.scrollHeight) * 100),
+        t: Math.round(activeMs),
+        l: visit.l,
+        f: visit.f
+      };
+      try { navigator.sendBeacon('track.php', new URLSearchParams({ e: 'visit', d: JSON.stringify(payload) })); } catch (err) { /* */ }
+    };
+    doc.addEventListener('visibilitychange', function () {
+      if (doc.hidden) {
+        if (shownAt) { activeMs += nowMs() - shownAt; shownAt = 0; }
+        send();
+      } else if (!sent) {
+        shownAt = nowMs();
+      }
+    });
+    window.addEventListener('pagehide', send);
   });
 })();

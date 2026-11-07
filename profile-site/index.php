@@ -82,6 +82,14 @@ function hero_picture(array $img, string $class, string $alt, string $sizes, str
     return $h;
 }
 
+function wave_svg(string $pos): string
+{
+    $d = 'M0 38 C240 8 480 8 720 34 C960 60 1200 62 1440 38 C1680 8 1920 8 2160 34 C2400 60 2640 62 2880 38 L2880 72 L0 72 Z';
+    $d2 = 'M0 46 C300 20 560 18 820 40 C1080 62 1260 60 1440 46 C1740 20 2000 18 2260 40 C2520 62 2700 60 2880 46 L2880 72 L0 72 Z';
+    return '<div class="wave wave--' . $pos . '" aria-hidden="true"><svg viewBox="0 0 2880 72" preserveAspectRatio="none">'
+        . '<path class="wave__back" d="' . $d2 . '"/><path class="wave__front" d="' . $d . '"/></svg></div>';
+}
+
 track_view();
 
 header('Content-Type: text/html; charset=utf-8');
@@ -189,7 +197,29 @@ if (trim($covers) !== '') {
     $fontLinks[] = 'https://fonts.googleapis.com/css2?family=Lalezar&display=swap&text=' . rawurlencode($uniq($covers));
 }
 $langHref = $otherLang === 'ar' ? './?lang=ar' : './';
-if (feature_on('code') && trim((string) ($c['code']['lines'] ?? '')) !== '') {
+// السرعة الفائقة: الخطوط من الموقع نفسه (مع تحميل مسبق) بدل جوجل، والملفات المضغوطة
+$speedOn = feature_on('speed') && is_file(APP_ROOT . '/assets/fonts/fonts.css');
+$preloadFonts = [];
+if ($speedOn) {
+    $fontLinks = [];
+    $preloadFonts = $en
+        ? ['fraunces-latin-normal-500-900.woff2', 'plusjakartasans-latin-normal-400-800.woff2']
+        : ['cairo-arabic-normal-400-900.woff2', 'fraunces-latin-normal-500-900.woff2'];
+}
+// الملف المضغوط (min) يحمل بصمة الملف الأصلي في أول سطر؛ يُستعمل فقط لو كانت البصمة مطابقة،
+// فلو عُدّل الأصلي لاحقاً يُستعمل الأصلي تلقائياً ولا يظهر تصميم قديم أبداً
+$pickAsset = function (string $src, string $min) use ($speedOn): string {
+    $s = APP_ROOT . '/' . $src;
+    $m = APP_ROOT . '/' . $min;
+    if (!$speedOn || !is_file($m) || !is_file($s)) {
+        return $src;
+    }
+    $head = (string) @file_get_contents($m, false, null, 0, 60);
+    return (preg_match('/^\/\*src:([a-f0-9]{32})\*\//', $head, $mm) && hash_equals($mm[1], (string) md5_file($s))) ? $min : $src;
+};
+$palette = current_palette();
+$palInfo = palette_list()[$palette];
+if (!$speedOn && feature_on('code') && trim((string) ($c['code']['lines'] ?? '')) !== '') {
     $fontLinks[] = 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap';
 }
 
@@ -212,8 +242,12 @@ $fx['code'] = $fx['code'] && trim((string) $codeData['lines']) !== '';
 $fx['orbit'] = $fx['orbit'] && count($tools) > 0;
 $heroMask = $heroImg['webp'] !== '' ? asset('assets/img/hero-640.webp') : $heroImg['src'];
 
+foreach (['speed', 'waves', 'progress', 'aurora', 'smooth', 'bigtext', 'share', 'analytics'] as $k) {
+    $fx[$k] = feature_on($k);
+}
 $appData = [
     'fx'    => $fx,
+    'share' => ['url' => page_url($L), 'title' => $title, 'qr' => asset('assets/vendor/qrcode.min.js'), 'file' => 'qr-' . preg_replace('/[^a-z0-9]+/', '-', strtolower($nameEn)) . '.png'],
     'lang'  => $L,
     'wa'    => digits($ct['whatsapp']),
     'ui'    => [
@@ -221,10 +255,11 @@ $appData = [
         'company' => ui('form_company'), 'service' => ui('form_service'), 'budget' => ui('form_budget'),
         'time' => ui('form_time'), 'details' => ui('form_details'), 'ok' => ui('form_ok'), 'saved' => ui('form_saved'),
         'err' => ui('form_err'), 'limit' => ui('form_limit'), 'less' => ui('less'),
+        'copy' => ui('copy'), 'copied' => ui('copied'),
     ],
 ];
 ?><!doctype html>
-<html lang="<?= $L ?>" dir="<?= $en ? 'ltr' : 'rtl' ?>" class="no-js notranslate" translate="no">
+<html lang="<?= $L ?>" dir="<?= $en ? 'ltr' : 'rtl' ?>" class="no-js notranslate" translate="no" data-palette="<?= e($palette) ?>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -242,7 +277,7 @@ $appData = [
 <link rel="alternate" hreflang="ar" href="<?= e(page_url('ar')) ?>">
 <link rel="alternate" hreflang="en" href="<?= e(page_url('en')) ?>">
 <link rel="alternate" hreflang="x-default" href="<?= e(page_url('en')) ?>">
-<meta name="theme-color" content="#f6f0eb">
+<meta name="theme-color" content="<?= e($palInfo[2]) ?>">
 <meta name="color-scheme" content="light">
 
 <meta property="og:type" content="profile">
@@ -268,13 +303,20 @@ $appData = [
 <link rel="apple-touch-icon" href="<?= e(asset('assets/apple-touch-icon.png')) ?>">
 <link rel="manifest" href="<?= e(asset('manifest.webmanifest')) ?>">
 
+<?php if ($speedOn): ?>
+<?php foreach ($preloadFonts as $pf): ?>
+<link rel="preload" as="font" type="font/woff2" href="<?= e('assets/fonts/' . $pf) ?>" crossorigin>
+<?php endforeach; ?>
+<link rel="stylesheet" href="<?= e(asset('assets/fonts/fonts.css')) ?>">
+<?php else: ?>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<?php endif; ?>
 <?php foreach ($fontLinks as $f): ?>
 <link rel="stylesheet" href="<?= e($f) ?>" media="print" onload="this.media='all'">
 <?php endforeach; ?>
 <noscript><?php foreach ($fontLinks as $f): ?><link rel="stylesheet" href="<?= e($f) ?>"><?php endforeach; ?></noscript>
-<link rel="stylesheet" href="<?= e(asset('assets/style.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset($pickAsset('assets/style.css', 'assets/style.min.css'))) ?>">
 <?php if ($heroImg['webp'] !== ''): ?>
 <link rel="preload" as="image" type="image/webp" imagesrcset="<?= e($heroImg['webp']) ?>" imagesizes="(max-width: 760px) 90vw, 560px">
 <?php endif; ?>
@@ -322,8 +364,9 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
     <?php endif; ?>
   </nav>
   <div class="nav__tools">
+    <?php if ($fx['share']): ?><button class="nav__share" type="button" data-share aria-label="<?= e(ui('share')) ?>" title="<?= e(ui('share')) ?>"><?= icon('share-2') ?></button><?php endif; ?>
     <button class="nav__theme" type="button" aria-label="<?= e(ui('theme')) ?>" title="<?= e(ui('theme')) ?>"><?= icon('sun', 'i i-sun') ?><?= icon('moon', 'i i-moon') ?></button>
-    <a class="nav__lang" href="<?= e($langHref) ?>" hreflang="<?= $otherLang ?>" lang="<?= $otherLang ?>" aria-label="<?= e(ui('lang_name')) ?>" data-track="lang"><span><?= e(ui('lang_code')) ?></span><?= flag_svg($otherLang) ?></a>
+    <a class="nav__lang" href="<?= e($langHref) ?>" hreflang="<?= $otherLang ?>" lang="<?= $otherLang ?>" aria-label="<?= e(ui('lang_code') . ' – ' . ui('lang_name')) ?>" data-track="lang"><span><?= e(ui('lang_code')) ?></span><?= flag_svg($otherLang) ?></a>
     <?php if ($waUrl): ?>
     <a class="nav__cta" href="<?= e($waUrl) ?>" target="_blank" rel="noopener" data-track="whatsapp"><?= icon('whatsapp') ?><span><?= e(tx($nav, 'cta')) ?></span></a>
     <?php endif; ?>
@@ -340,11 +383,21 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
 </ul>
 <?php endif; ?>
 
+<?php if ($fx['progress']): ?>
+<div class="readbar" aria-hidden="true"><i></i></div>
+<nav class="dots" aria-label="<?= e(ui('sections')) ?>">
+  <?php foreach ($navItems as [$key, $href, $label]): ?>
+  <a href="<?= e($href) ?>" data-dot="<?= e($key) ?>"><span><?= e($label) ?></span><i></i></a>
+  <?php endforeach; ?>
+</nav>
+<?php endif; ?>
+
 <main id="main">
 
   <!-- ───────── الواجهة ───────── -->
-  <section class="hero" id="home" data-section="home"<?= $heroCustom !== '' && $heroImg['h'] > 0 ? ' style="--ratio:' . round($heroImg['w'] / $heroImg['h'], 4) . '"' : '' ?>>
+  <section class="hero" id="home" data-section="home" data-read="home"<?= $heroCustom !== '' && $heroImg['h'] > 0 ? ' style="--ratio:' . round($heroImg['w'] / $heroImg['h'], 4) . '"' : '' ?>>
     <div class="hero__bg" aria-hidden="true"></div>
+    <?php if ($fx['aurora']): ?><div class="aurora aurora--hero" aria-hidden="true"><i></i><i></i><i></i></div><?php endif; ?>
     <h1 class="hero__name"><span class="sr-only"><?= e($hero['name']) ?> – </span><span class="hero__word" dir="ltr" lang="en"><?php foreach ($nameParts as $wi => $word): ?><span class="hero__w"><?php foreach (preg_split('//u', $word, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $ci => $ch): ?><span class="hero__ch" style="--i:<?= $wi * 6 + $ci ?>"><?= e($ch) ?></span><?php endforeach; ?></span><?= $wi < count($nameParts) - 1 ? ' ' : '' ?><?php endforeach; ?></span></h1>
 
     <div class="hero__photo">
@@ -381,7 +434,8 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
   </section>
 
   <!-- ───────── نبذة ───────── -->
-  <section class="section" id="about" data-section="about">
+  <section class="section" id="about" data-section="about" data-read="about">
+    <?php if ($fx['aurora']): ?><div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div><?php endif; ?>
     <div class="wrap">
       <header class="head reveal">
         <p class="kicker"><?= e(tx($ab, 'kicker')) ?></p>
@@ -443,7 +497,7 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
           <span class="code-win__file"><?= icon('code-xml') ?><?= e($fname) ?></span>
           <span class="code-win__lang" aria-hidden="true">UTF-8 · JS</span>
         </div>
-        <pre class="code-win__body" aria-label="<?= e($fname) ?>"><code id="code-out"><?php foreach ($codeLines as $i => $line): ?><span class="ln"><?= e($line) ?></span><?php endforeach; ?></code></pre>
+        <pre class="code-win__body"><code id="code-out"><?php foreach ($codeLines as $i => $line): ?><span class="ln"><?= e($line) ?></span><?php endforeach; ?></code></pre>
         <div class="code-win__out" aria-live="polite">
           <p class="code-win__cmd"><b>$</b> node <?= e($fname) ?></p>
           <p class="code-win__ok"><?= icon('check') ?><span dir="auto"><?= e(tx($codeData, 'output')) ?></span></p>
@@ -456,7 +510,8 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
 
   <!-- ───────── لماذا أنا ───────── -->
   <?php if ($whyItems): ?>
-  <section class="section" id="why" data-section="about">
+  <section class="section<?= $fx['waves'] ? ' section--alt' : '' ?>" id="why" data-section="about" data-read="why">
+    <?php if ($fx['waves']): ?><?= wave_svg('top') ?><?php endif; ?>
     <div class="wrap">
       <header class="head reveal">
         <p class="kicker"><?= e(tx($why, 'kicker')) ?></p>
@@ -487,12 +542,13 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
       </ul>
       <?php endif; ?>
     </div>
+    <?php if ($fx['waves']): ?><?= wave_svg('bottom') ?><?php endif; ?>
   </section>
   <?php endif; ?>
 
   <!-- ───────── الخدمات ───────── -->
   <?php if ($services): ?>
-  <section class="section" id="services" data-section="services">
+  <section class="section" id="services" data-section="services" data-read="services">
     <div class="wrap">
       <header class="head reveal">
         <p class="kicker"><?= e(tx($svc, 'kicker')) ?></p>
@@ -523,7 +579,8 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
 
   <!-- ───────── القطاعات ───────── -->
   <?php if ($sectors): $half = (int) ceil(count($sectors) / 2); $rows = count($sectors) > 5 ? [array_slice($sectors, 0, $half), array_slice($sectors, $half)] : [$sectors]; ?>
-  <section class="section" id="sectors" data-section="sectors">
+  <section class="section<?= $fx['waves'] ? ' section--alt section--alt-start' : '' ?>" id="sectors" data-section="sectors" data-read="sectors">
+    <?php if ($fx['waves']): ?><?= wave_svg('top') ?><?php endif; ?>
     <div class="wrap">
       <header class="head reveal">
         <p class="kicker"><?= e(tx($sec, 'kicker')) ?></p>
@@ -552,7 +609,7 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
 
   <!-- ───────── الأرقام ───────── -->
   <?php if ($stats): ?>
-  <section class="section section--tight" data-section="sectors">
+  <section class="section section--tight<?= $fx['waves'] ? ' section--alt section--alt-end' : '' ?>" data-section="sectors" data-read="stats">
     <div class="wrap">
       <ul class="stats">
         <?php foreach ($stats as $s): $num = preg_replace('/[^\d]/', '', $s['num']); ?>
@@ -564,12 +621,13 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
         <?php endforeach; ?>
       </ul>
     </div>
+    <?php if ($fx['waves']): ?><?= wave_svg('bottom') ?><?php endif; ?>
   </section>
   <?php endif; ?>
 
   <!-- ───────── الأعمال ───────── -->
   <?php if ($projects): ?>
-  <section class="section" id="projects" data-section="projects">
+  <section class="section" id="projects" data-section="projects" data-read="projects">
     <div class="wrap">
       <header class="head reveal">
         <p class="kicker"><?= e(tx($pj, 'kicker')) ?></p>
@@ -618,7 +676,7 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
 
   <!-- ───────── آراء العملاء (يظهر عند إضافة آراء حقيقية من اللوحة) ───────── -->
   <?php if ($reviews): ?>
-  <section class="section" id="reviews" data-section="projects">
+  <section class="section" id="reviews" data-section="projects" data-read="reviews">
     <div class="wrap">
       <header class="head reveal">
         <p class="kicker"><?= e(tx($rv, 'kicker')) ?></p>
@@ -652,7 +710,8 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
   <?php endif; ?>
 
   <!-- ───────── تواصل ───────── -->
-  <section class="section" id="contact" data-section="contact">
+  <section class="section" id="contact" data-section="contact" data-read="contact">
+    <?php if ($fx['aurora']): ?><div class="aurora aurora--soft" aria-hidden="true"><i></i><i></i><i></i></div><?php endif; ?>
     <div class="wrap">
       <header class="head reveal">
         <p class="kicker"><?= e(tx($ct, 'kicker')) ?></p>
@@ -717,10 +776,24 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
       </div>
     </div>
   </section>
+  <?php $bigText = trim(tx($c['bigtext'] ?? [], 'text')); if ($fx['bigtext'] && $bigText !== ''): ?>
+  <!-- ───────── النص العملاق المتحرك ───────── -->
+  <section class="mega" aria-label="<?= e($bigText) ?>">
+    <?php foreach (['a', 'b'] as $row): ?>
+    <div class="mega__row mega__row--<?= $row ?>" aria-hidden="true">
+      <div class="mega__track">
+        <?php for ($g = 0; $g < 2; $g++): ?>
+        <div class="mega__group"><?php for ($k = 0; $k < 3; $k++): ?><span dir="auto"><?= e($bigText) ?></span><?= icon('sparkle', 'mega__star') ?><?php endfor; ?></div>
+        <?php endfor; ?>
+      </div>
+    </div>
+    <?php endforeach; ?>
+  </section>
+  <?php endif; ?>
 </main>
 
 <!-- ───────── التذييل ───────── -->
-<footer class="foot">
+<footer class="foot" data-read="cta">
   <div class="foot__card reveal">
     <div class="foot__cta">
       <p class="foot__kicker"><?= e(tx($ct, 'cta_kicker')) ?></p>
@@ -742,7 +815,7 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
       </div>
       <nav class="foot__links" aria-label="<?= e(ui('browse')) ?>">
         <h3><?= e(ui('browse')) ?></h3>
-        <ul><?php foreach ($navItems as [$key, $href, $label]): if ($key === 'home') continue; ?><li><a href="<?= e($href) ?>"><?= e($label) ?></a></li><?php endforeach; ?><li><a href="<?= e($langHref) ?>" hreflang="<?= $otherLang ?>"><?= e(ui('lang_name')) ?></a></li></ul>
+        <ul><?php foreach ($navItems as [$key, $href, $label]): if ($key === 'home') continue; ?><li><a href="<?= e($href) ?>"><?= e($label) ?></a></li><?php endforeach; ?><li><a href="<?= e($langHref) ?>" hreflang="<?= $otherLang ?>"><?= e(ui('lang_name')) ?></a></li><?php if ($fx['share']): ?><li><button type="button" class="foot__share" data-share><?= icon('share-2') ?><?= e(ui('share')) ?></button></li><?php endif; ?></ul>
       </nav>
       <div class="foot__contact">
         <h3><?= e(ui('get_in_touch')) ?></h3>
@@ -778,9 +851,36 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
   <button class="chat__btn" type="button" aria-label="<?= e(ui('chat_label')) ?>" aria-expanded="false" aria-controls="chat-pop"><?= icon('message-circle-more', 'i chat__i1') ?><?= icon('x', 'i chat__i2') ?></button>
 </div>
 <?php endif; ?>
+<?php if ($fx['share']): $shareUrl = page_url($L); ?>
+<div class="share" id="share" hidden>
+  <div class="share__backdrop" data-share-close></div>
+  <div class="share__card" role="dialog" aria-modal="true" aria-labelledby="share-title">
+    <button type="button" class="share__x" data-share-close aria-label="<?= e(ui('close')) ?>"><?= icon('x') ?></button>
+    <p class="share__kicker"><?= e(ui('share_kicker')) ?></p>
+    <h2 class="share__title" id="share-title"><?= e(ui('share_title')) ?></h2>
+    <div class="share__qr">
+      <div class="share__qrbox" id="share-qr" role="img" aria-label="QR"></div>
+      <span class="share__logo" aria-hidden="true"><?= logo_mark('mark') ?></span>
+    </div>
+    <div class="share__url">
+      <span dir="ltr" id="share-url"><?= e(preg_replace('#^https?://#', '', $shareUrl)) ?></span>
+      <button type="button" class="share__copy" data-copy><?= icon('copy') ?><b><?= e(ui('copy')) ?></b></button>
+    </div>
+    <div class="share__nets">
+      <a data-net="whatsapp" target="_blank" rel="noopener" aria-label="<?= e(ui('whatsapp')) ?>"><?= icon('whatsapp') ?></a>
+      <a data-net="facebook" target="_blank" rel="noopener" aria-label="<?= e(ui('facebook')) ?>"><?= icon('facebook') ?></a>
+      <a data-net="telegram" target="_blank" rel="noopener" aria-label="<?= e(ui('telegram')) ?>"><?= icon('send') ?></a>
+      <a data-net="x" target="_blank" rel="noopener" aria-label="X"><?= icon('x-brand') ?></a>
+      <button type="button" data-native hidden aria-label="<?= e(ui('more')) ?>"><?= icon('share-2') ?></button>
+    </div>
+    <button type="button" class="btn btn--block share__dl" data-qr-download><?= icon('download') ?><span><?= e(ui('qr_download')) ?></span></button>
+  </div>
+</div>
+<?php endif; ?>
 <a class="totop" href="#home" aria-label="<?= e(ui('to_top')) ?>"><svg class="totop__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" pathLength="1"/></svg><?= icon('arrow-up') ?></a>
 
 <script type="application/json" id="app-data"><?= json_encode($appData, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
-<script src="<?= e(asset('assets/app.js')) ?>" defer></script>
+<?php if ($fx['smooth']): ?><script src="<?= e(asset('assets/vendor/lenis.min.js')) ?>" defer></script><?php endif; ?>
+<script src="<?= e(asset($pickAsset('assets/app.js', 'assets/app.min.js'))) ?>" defer></script>
 </body>
 </html>

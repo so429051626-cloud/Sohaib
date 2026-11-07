@@ -1,4 +1,4 @@
-# صفحة صهيب قديح: إعدادات Apache. كل سطر داخل IfModule حتى لا يسبب خطأ 500 على أي استضافة.
+# صفحة صهيب شوقي: إعدادات Apache. كل سطر داخل IfModule حتى لا يسبب خطأ 500 على أي استضافة.
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
@@ -12,11 +12,18 @@
 <IfModule mod_mime.c>
   AddType application/manifest+json .webmanifest
   AddType image/svg+xml .svg
+  AddType image/webp .webp
+  AddType font/woff2 .woff2
 </IfModule>
 
 <IfModule mod_headers.c>
   Header always set X-Content-Type-Options "nosniff"
-  <FilesMatch "\.(css|js|svg|png|jpe?g|webp|woff2?)$">
+  # ملفات التصميم والبرمجة تحمل رقم إصدار (?v=) في روابطها، فتُخزَّن سنة كاملة بأمان
+  <FilesMatch "\.(css|js)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  # الصور والخطوط: 30 يوماً
+  <FilesMatch "\.(svg|png|jpe?g|webp|woff2?)$">
     Header set Cache-Control "public, max-age=2592000"
   </FilesMatch>
 </IfModule>

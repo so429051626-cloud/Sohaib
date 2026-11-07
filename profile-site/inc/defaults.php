@@ -207,13 +207,28 @@ function default_content(): array
             'output'    => 'تم! نظامك جاهز للانطلاق',
             'output_en' => 'Done! Your system is ready to launch',
         ],
+        // النص العملاق المتحرك قبل التذييل
+        'bigtext' => [
+            'text'    => 'لنبنِ شيئاً عظيماً معاً',
+            'text_en' => "Let's build something great",
+        ],
+        // ثيم الألوان: crimson أو madix أو gold أو emerald أو violet
+        'palette' => 'crimson',
         // ميزات الصفحة (تُشغَّل وتُطفأ من لوحة التحكم ← الإعدادات). '1' = تعمل، '0' = متوقفة
         'features' => [
-            'tilt'     => '1',
-            'cursor'   => '1',
-            'scramble' => '1',
-            'code'     => '1',
-            'orbit'    => '1',
+            'tilt'      => '1',
+            'cursor'    => '1',
+            'scramble'  => '1',
+            'code'      => '1',
+            'orbit'     => '1',
+            'speed'     => '1',
+            'waves'     => '1',
+            'progress'  => '1',
+            'aurora'    => '1',
+            'smooth'    => '1',
+            'bigtext'   => '1',
+            'share'     => '1',
+            'analytics' => '1',
         ],
         // صورة الموقع: تظهر في نتائج جوجل وعند مشاركة الرابط ولوحة التحكم (تُرفع من اللوحة)
         'avatar'     => '',
