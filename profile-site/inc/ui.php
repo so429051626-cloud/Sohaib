@@ -37,6 +37,7 @@ const UI = [
     'next'          => ['التالي', 'Next'],
     'rating'        => ['التقييم', 'Rating'],
     'client'        => ['عميل', 'Client'],
+    'view'          => ['عرض', 'View'],
     'photo_alt'     => ['صهيب شوقي', 'Sohaib Shawqi'],
     'form_name'     => ['الاسم', 'Name'],
     'form_name_ph'  => ['اسمك الكامل', 'Your full name'],

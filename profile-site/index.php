@@ -189,6 +189,9 @@ if (trim($covers) !== '') {
     $fontLinks[] = 'https://fonts.googleapis.com/css2?family=Lalezar&display=swap&text=' . rawurlencode($uniq($covers));
 }
 $langHref = $otherLang === 'ar' ? './?lang=ar' : './';
+if (feature_on('code') && trim((string) ($c['code']['lines'] ?? '')) !== '') {
+    $fontLinks[] = 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap';
+}
 
 $navItems = [['home', '#home', tx($nav, 'home')], ['about', '#about', tx($nav, 'about')], ['services', '#services', tx($nav, 'services')]];
 if ($sectors) {
@@ -199,7 +202,18 @@ if ($projects) {
 }
 $navItems[] = ['contact', '#contact', tx($nav, 'contact')];
 
+$fx = [];
+foreach (array_keys(feature_list()) as $k) {
+    $fx[$k] = feature_on($k);
+}
+$codeData  = $c['code'] ?? ['filename' => '', 'lines' => '', 'output' => '', 'output_en' => ''];
+$codeLines = preg_split('/\R/u', rtrim((string) $codeData['lines'])) ?: [];
+$fx['code'] = $fx['code'] && trim((string) $codeData['lines']) !== '';
+$fx['orbit'] = $fx['orbit'] && count($tools) > 0;
+$heroMask = $heroImg['webp'] !== '' ? asset('assets/img/hero-640.webp') : $heroImg['src'];
+
 $appData = [
+    'fx'    => $fx,
     'lang'  => $L,
     'wa'    => digits($ct['whatsapp']),
     'ui'    => [
@@ -334,8 +348,11 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
     <h1 class="hero__name"><span class="sr-only"><?= e($hero['name']) ?> – </span><span class="hero__word" dir="ltr" lang="en"><?php foreach ($nameParts as $wi => $word): ?><span class="hero__w"><?php foreach (preg_split('//u', $word, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $ci => $ch): ?><span class="hero__ch" style="--i:<?= $wi * 6 + $ci ?>"><?= e($ch) ?></span><?php endforeach; ?></span><?= $wi < count($nameParts) - 1 ? ' ' : '' ?><?php endforeach; ?></span></h1>
 
     <div class="hero__photo">
-      <span class="hero__halo" aria-hidden="true"></span>
-      <?= hero_picture($heroImg, 'hero__pic', ui('photo_alt') . ' – ' . $nameEn, '(max-width: 760px) 90vw, 560px', 'eager') ?>
+      <div class="hero__tilt">
+        <span class="hero__halo" aria-hidden="true"></span>
+        <?= hero_picture($heroImg, 'hero__pic', ui('photo_alt') . ' – ' . $nameEn, '(max-width: 760px) 90vw, 560px', 'eager') ?>
+        <?php if ($fx['tilt']): ?><span class="hero__glare" aria-hidden="true" style="-webkit-mask-image:url('<?= e($heroMask) ?>');mask-image:url('<?= e($heroMask) ?>')"></span><?php endif; ?>
+      </div>
     </div>
 
     <?= ribbon_html($ribbon, 'tilt') ?>
@@ -386,8 +403,16 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
               <?php endif; ?>
               <span class="blob__shine" aria-hidden="true"></span>
             </div>
+            <?php if ($fx['orbit']): $n = count($tools); ?>
+            <div class="orbit" aria-hidden="true">
+              <?php foreach ($tools as $ti => $t): ?>
+              <span class="orbit__item" style="--a:<?= round($ti * 360 / $n, 2) ?>deg"><b dir="ltr"><?= e($t['code']) ?></b></span>
+              <?php endforeach; ?>
+            </div>
+            <?php else: ?>
             <span class="blob__chip blob__chip--a" aria-hidden="true"><?= icon('code-xml') ?></span>
             <span class="blob__chip blob__chip--b" aria-hidden="true"><?= icon('crown') ?><b>MADIX</b></span>
+            <?php endif; ?>
           </div>
         </figure>
         <article class="about__card card reveal">
@@ -409,6 +434,22 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
         <li class="tool reveal"><b dir="ltr"><?= e($t['code']) ?></b><span><?= e($t['name']) ?></span></li>
         <?php endforeach; ?>
       </ul>
+      <?php endif; ?>
+
+      <?php if ($fx['code']): $fname = trim((string) $codeData['filename']) !== '' ? (string) $codeData['filename'] : 'code.js'; ?>
+      <div class="code-win reveal" dir="ltr" translate="no">
+        <div class="code-win__bar">
+          <span class="code-win__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="code-win__file"><?= icon('code-xml') ?><?= e($fname) ?></span>
+          <span class="code-win__lang" aria-hidden="true">UTF-8 · JS</span>
+        </div>
+        <pre class="code-win__body" aria-label="<?= e($fname) ?>"><code id="code-out"><?php foreach ($codeLines as $i => $line): ?><span class="ln"><?= e($line) ?></span><?php endforeach; ?></code></pre>
+        <div class="code-win__out" aria-live="polite">
+          <p class="code-win__cmd"><b>$</b> node <?= e($fname) ?></p>
+          <p class="code-win__ok"><?= icon('check') ?><span dir="auto"><?= e(tx($codeData, 'output')) ?></span></p>
+        </div>
+      </div>
+      <script type="application/json" id="code-src"><?= json_encode(array_values($codeLines), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
       <?php endif; ?>
     </div>
   </section>
@@ -545,7 +586,7 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
             $host = $url !== '' ? preg_replace('#^https?://(www\.)?#', '', rtrim($url, '/')) : '';
             $tag = $url !== '' ? 'a' : 'div';
         ?>
-        <<?= $tag ?> class="work work--t<?= $i % 4 ?> reveal<?= $i >= 6 ? ' work--extra' : '' ?>"<?php if ($url): ?> href="<?= e($url) ?>" target="_blank" rel="noopener" data-track="<?= e(project_key($p)) ?>"<?php endif; ?>>
+        <<?= $tag ?> class="work work--t<?= $i % 4 ?> reveal<?= $i >= 6 ? ' work--extra' : '' ?>"<?php if ($url): ?> href="<?= e($url) ?>" target="_blank" rel="noopener" data-track="<?= e(project_key($p)) ?>" data-cursor="<?= e(ui('view')) ?>"<?php endif; ?>>
           <div class="work__art" aria-hidden="true">
             <?php if ($img !== ''): ?>
             <img src="<?= e($img) ?>" alt="" loading="lazy" decoding="async">

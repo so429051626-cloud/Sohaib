@@ -1001,3 +1001,103 @@ select {
     radial-gradient(circle at 30% 20%, rgba(229, 56, 63, 0.7), transparent 60%),
     linear-gradient(160deg, #d98a85, #f1d3cb);
 }
+
+/* بدون المربع الأزرق عند الضغط في الجوال */
+html,
+html * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ───────── مفاتيح تشغيل الميزات ───────── */
+
+.fx-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.fx {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.fx:hover {
+  border-color: var(--line-strong);
+}
+
+.fx__text {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+}
+
+.fx__text small {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.fx input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.switch {
+  position: relative;
+  width: 50px;
+  height: 28px;
+  flex: none;
+  border-radius: 999px;
+  background: rgba(255, 222, 216, 0.14);
+  border: 1px solid var(--line-strong);
+  transition: background 0.25s, border-color 0.25s;
+}
+
+.switch i {
+  position: absolute;
+  top: 3px;
+  inset-inline-start: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: transform 0.25s cubic-bezier(0.2, 0.75, 0.2, 1);
+}
+
+.fx input:checked + .switch {
+  background: var(--cyan);
+  border-color: var(--cyan);
+}
+
+.fx input:checked + .switch i {
+  transform: translateX(-22px);
+}
+
+[dir="ltr"] .fx input:checked + .switch i {
+  transform: translateX(22px);
+}
+
+.fx input:focus-visible + .switch {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+.fx-list .btn {
+  justify-self: start;
+  margin-top: 6px;
+}

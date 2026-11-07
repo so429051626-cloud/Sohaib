@@ -342,6 +342,19 @@
         "rights_en": "All rights reserved",
         "en_line": "Sohaib Shawqi · Founder & Developer of MADIX Systems · POS, E-commerce, SaaS & AI Platforms"
     },
+    "code": {
+        "filename": "sohaib.js",
+        "lines": "const developer = {\n  name: \"Sohaib Shawqi\",\n  role: \"Founder & Developer @ MADIX\",\n  builds: [\"POS\", \"E-Stores\", \"SaaS\", \"AI\"],\n  available: true,\n};\n\ndeveloper.launch(); // Ready to build your idea",
+        "output": "تم! نظامك جاهز للانطلاق",
+        "output_en": "Done! Your system is ready to launch"
+    },
+    "features": {
+        "tilt": "1",
+        "cursor": "1",
+        "scramble": "1",
+        "code": "1",
+        "orbit": "1"
+    },
     "avatar": "",
     "hero_photo": "",
     "about_photo": ""

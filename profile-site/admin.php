@@ -56,6 +56,11 @@ function content_schema(): array
             'chips_title' => ['عنوان المجالات', 'text', 0, TR],
             'chips'       => ['المجالات (كل مجال في سطر)', 'textarea', 0, TR],
         ]],
+        'code' => ['title' => 'نافذة الكود (تكتب نفسها)', 'note' => 'تُشغَّل وتُطفأ من تبويب الإعدادات ← ميزات الصفحة.', 'fields' => [
+            'filename' => ['اسم الملف أعلى النافذة', 'text'],
+            'lines'    => ['أسطر الكود (كل سطر في سطر، يفضّل 5 إلى 9 أسطر)', 'code'],
+            'output'   => ['نتيجة التشغيل التي تظهر بعد الكتابة', 'text', 0, TR],
+        ]],
         'why' => ['title' => 'لماذا تعمل معي', 'fields' => [
             'kicker' => ['العنوان الصغير', 'text', 0, TR],
             'title'  => ['عنوان القسم', 'text', 0, TR],
@@ -186,6 +191,12 @@ function clean_field(string $type, $raw): string
         case 'rating':
             $n = (int) clean_text($raw, 2);
             return (string) max(1, min(5, $n ?: 5));
+        case 'code':
+            // الكود: نحافظ على المسافات في بداية الأسطر
+            $v = is_string($raw) ? str_replace(["\r\n", "\r"], "\n", $raw) : '';
+            $v = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $v) ?? '';
+            $lines = array_slice(explode("\n", rtrim($v)), 0, 16);
+            return mb_substr(implode("\n", array_map('rtrim', $lines)), 0, 1600, 'UTF-8');
         default:
             return clean_text($raw);
     }
@@ -636,6 +647,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                     refresh_login();
                     flash('تم تغيير كلمة المرور. أي جهاز آخر كان داخلاً إلى اللوحة خرج تلقائياً.');
                 }
+                break;
+            case 'save_features':
+                $tab = 'settings';
+                $in = isset($_POST['features']) && is_array($_POST['features']) ? $_POST['features'] : [];
+                $ok = store_update('content', function (array $c) use ($in) {
+                    $c = merge_content(default_content(), $c);
+                    foreach (array_keys(feature_list()) as $k) {
+                        $c['features'][$k] = (($in[$k] ?? '') === '1') ? '1' : '0';
+                    }
+                    return $c;
+                });
+                flash($ok ? 'تم حفظ إعدادات الميزات، وهي ظاهرة الآن على الصفحة.' : SAVE_FAILED, $ok ? 'ok' : 'err');
                 break;
             case 'reset_stats':
                 $tab = 'settings';
@@ -1110,6 +1133,21 @@ $c = content();
   <?php endif; ?>
 
   <?php else: ?>
+  <section class="panel">
+    <header class="panel__head"><h2><?= icon('sparkles') ?>ميزات الصفحة</h2></header>
+    <p class="muted">شغّل أو أطفئ أي ميزة ثم اضغط "حفظ". التغيير يظهر على الصفحة فوراً.</p>
+    <form method="post" action="<?= e($self) ?>" class="fx-list">
+      <?= csrf_field() ?><input type="hidden" name="action" value="save_features">
+      <?php foreach (feature_list() as $k => [$label, $desc]): $on = feature_on($k); ?>
+      <label class="fx">
+        <span class="fx__text"><b><?= e($label) ?></b><small><?= e($desc) ?></small></span>
+        <input type="checkbox" name="features[<?= e($k) ?>]" value="1"<?= $on ? ' checked' : '' ?>>
+        <span class="switch" aria-hidden="true"><i></i></span>
+      </label>
+      <?php endforeach; ?>
+      <button class="btn btn--primary" type="submit"><?= icon('save') ?>حفظ الميزات</button>
+    </form>
+  </section>
   <div class="cols">
     <section class="panel">
       <header class="panel__head"><h2><?= icon('lock') ?>تغيير كلمة المرور</h2></header>

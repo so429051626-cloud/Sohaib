@@ -200,6 +200,21 @@ function default_content(): array
             'rights_en' => 'All rights reserved',
             'en_line'   => 'Sohaib Shawqi · Founder & Developer of MADIX Systems · POS, E-commerce, SaaS & AI Platforms',
         ],
+        // نافذة الكود التي تكتب نفسها
+        'code' => [
+            'filename'  => 'sohaib.js',
+            'lines'     => "const developer = {\n  name: \"Sohaib Shawqi\",\n  role: \"Founder & Developer @ MADIX\",\n  builds: [\"POS\", \"E-Stores\", \"SaaS\", \"AI\"],\n  available: true,\n};\n\ndeveloper.launch(); // Ready to build your idea",
+            'output'    => 'تم! نظامك جاهز للانطلاق',
+            'output_en' => 'Done! Your system is ready to launch',
+        ],
+        // ميزات الصفحة (تُشغَّل وتُطفأ من لوحة التحكم ← الإعدادات). '1' = تعمل، '0' = متوقفة
+        'features' => [
+            'tilt'     => '1',
+            'cursor'   => '1',
+            'scramble' => '1',
+            'code'     => '1',
+            'orbit'    => '1',
+        ],
         // صورة الموقع: تظهر في نتائج جوجل وعند مشاركة الرابط ولوحة التحكم (تُرفع من اللوحة)
         'avatar'     => '',
         // صورة الواجهة المقصوصة بخلفية شفافة (تُرفع من اللوحة)
