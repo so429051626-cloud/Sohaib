@@ -12,5 +12,6 @@ echo "User-agent: *\n";
 echo "Allow: /\n";
 echo "Disallow: {$path}admin.php\n";
 echo "Disallow: {$path}track.php\n";
+echo "Disallow: {$path}contact.php\n";
 echo "\n";
 echo 'Sitemap: ' . $base . "sitemap.php\n";

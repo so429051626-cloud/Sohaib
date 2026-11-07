@@ -1,271 +1,430 @@
 (function () {
   'use strict';
 
+  window.__appOk = true;
+
+  var doc = document;
+  var root = doc.documentElement;
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var data = {};
+  try { data = JSON.parse((doc.getElementById('app-data') || {}).textContent || '{}'); } catch (e) { data = {}; }
+  var ui = data.ui || {};
+  var $ = function (s, el) { return (el || doc).querySelector(s); };
+  var $$ = function (s, el) { return Array.prototype.slice.call((el || doc).querySelectorAll(s)); };
 
-  /* ───────── الشريط العلوي عند التمرير ───────── */
-  var nav = document.querySelector('.nav');
-  function onScroll() {
-    if (nav) nav.classList.toggle('is-scrolled', window.scrollY > 8);
+  // كل جزء مستقل: لو تعطّل جزء لا يوقف بقية الصفحة
+  function safe(fn) {
+    try { fn(); } catch (err) { if (window.console) console.error(err); }
   }
-  window.addEventListener('scroll', onScroll, { passive: true });
-  onScroll();
 
-  /* ───────── الظهور التدريجي ───────── */
-  var reveals = document.querySelectorAll('.reveal');
-  document.querySelectorAll('.grid').forEach(function (g) {
-    Array.prototype.forEach.call(g.children, function (el, i) {
-      el.style.setProperty('--d', (i * 0.08).toFixed(2) + 's');
+  /* ───────── أداة تمرير واحدة لكل التأثيرات (بإطار رسم واحد) ───────── */
+  var scrollFns = [];
+  var ticking = false;
+  function onScroll(fn) { scrollFns.push(fn); }
+  function runScroll() {
+    ticking = false;
+    for (var i = 0; i < scrollFns.length; i++) safe(scrollFns[i]);
+  }
+  window.addEventListener('scroll', function () {
+    if (!ticking) { ticking = true; requestAnimationFrame(runScroll); }
+  }, { passive: true });
+  window.addEventListener('resize', function () { requestAnimationFrame(runScroll); });
+
+  /* ───────── شاشة التحميل ثم حركة دخول الواجهة ───────── */
+  safe(function () {
+    var start = window.performance && performance.now ? performance.now() : 0;
+    var ready = function () {
+      root.classList.add('is-ready');
+      root.classList.remove('is-quick');
+      try { sessionStorage.setItem('sq-loaded', '1'); } catch (e) { /* خاص */ }
+      if (root.classList.contains('is-loading')) {
+        setTimeout(function () { root.classList.remove('is-loading'); }, 800);
+      }
+    };
+    if (root.classList.contains('is-loading')) {
+      // الشعار يحتاج ~2.2 ثانية ليكتمل رسمه؛ ولا ننتظر أكثر من 3.6 ثانية مهما كان الاتصال بطيئاً
+      var minWait = Math.max(0, 2250 - start);
+      var done = false;
+      var finish = function () { if (!done) { done = true; ready(); } };
+      var loaded = doc.readyState === 'complete';
+      var go = function () { setTimeout(finish, loaded ? minWait : Math.max(0, 2250 - performance.now())); };
+      if (loaded) go(); else window.addEventListener('load', go, { once: true });
+      setTimeout(finish, Math.max(minWait, 3600 - start));
+    } else {
+      requestAnimationFrame(function () { setTimeout(ready, 40); });
+    }
+  });
+
+  /* ───────── الشريط العلوي: القائمة، المؤشر الأحمر، القسم الحالي ───────── */
+  safe(function () {
+    var nav = $('.nav');
+    if (!nav) return;
+    var links = $('.nav__links', nav);
+    var ind = $('.nav__ind', nav);
+    var burger = $('.nav__burger', nav);
+    var anchors = $$('.nav__links a[data-spy]', nav);
+
+    var setOpen = function (open) {
+      nav.classList.toggle('is-open', open);
+      if (burger) burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    if (burger) burger.addEventListener('click', function (e) { e.stopPropagation(); setOpen(!nav.classList.contains('is-open')); });
+    links.addEventListener('click', function (e) { if (e.target.closest('a')) setOpen(false); });
+    doc.addEventListener('click', function (e) { if (!nav.contains(e.target)) setOpen(false); });
+    doc.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
+
+    var current = null;
+    var moveInd = function () {
+      if (!ind || !current) return;
+      if (getComputedStyle(ind).display === 'none') return;
+      ind.style.left = current.offsetLeft + 'px';
+      ind.style.width = current.offsetWidth + 'px';
+      links.classList.add('has-ind');
+    };
+    var activate = function (key) {
+      var a = null;
+      anchors.forEach(function (x) { if (x.getAttribute('data-spy') === key) a = x; });
+      if (!a || a === current) return;
+      if (current) { current.classList.remove('is-active'); current.removeAttribute('aria-current'); }
+      current = a;
+      a.classList.add('is-active');
+      a.setAttribute('aria-current', 'true');
+      moveInd();
+    };
+    current = $('.nav__links a.is-active', nav);
+    moveInd();
+    // الخطوط تُحمَّل بعد ظهور الصفحة فيتغيّر عرض الروابط: نعيد ضبط المؤشر كلما تغيّر أي مقاس
+    if ('ResizeObserver' in window) {
+      var ro = new ResizeObserver(function () { moveInd(); });
+      ro.observe(links);
+      anchors.forEach(function (a) { ro.observe(a); });
+    }
+    if (doc.fonts) {
+      if (doc.fonts.ready) doc.fonts.ready.then(moveInd);
+      if (doc.fonts.addEventListener) doc.fonts.addEventListener('loadingdone', moveInd);
+    }
+    window.addEventListener('resize', moveInd);
+    window.addEventListener('load', moveInd);
+
+    var sections = $$('[data-section]');
+    var spy = function () {
+      var line = window.innerHeight * 0.38;
+      var key = sections.length ? sections[0].getAttribute('data-section') : 'home';
+      sections.forEach(function (s) { if (s.getBoundingClientRect().top <= line) key = s.getAttribute('data-section'); });
+      if (window.innerHeight + window.scrollY >= doc.documentElement.scrollHeight - 4) key = 'contact';
+      activate(key);
+      nav.classList.toggle('is-scrolled', window.scrollY > 10);
+    };
+    onScroll(spy);
+    spy();
+  });
+
+  /* ───────── الوضع الليلي ───────── */
+  safe(function () {
+    var btn = $('.nav__theme');
+    if (!btn) return;
+    var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    var isDark = function () {
+      var t = root.getAttribute('data-theme');
+      return t ? t === 'dark' : !!(mq && mq.matches);
+    };
+    var paintMeta = function () {
+      var color = isDark() ? '#120809' : '#f6f0eb';
+      $$('meta[name="theme-color"]').forEach(function (m) { m.setAttribute('content', color); });
+    };
+    paintMeta();
+    // لو لم يختر الزائر وضعاً بنفسه، نتبع إعداد جهازه حتى لو غيّره والصفحة مفتوحة
+    if (mq && mq.addEventListener) {
+      mq.addEventListener('change', function (ev) {
+        var saved = null;
+        try { saved = localStorage.getItem('sq-theme'); } catch (e) { /* خاص */ }
+        if (!saved) { root.setAttribute('data-theme', ev.matches ? 'dark' : 'light'); paintMeta(); }
+      });
+    }
+    var apply = function (mode) {
+      root.setAttribute('data-theme', mode);
+      try { localStorage.setItem('sq-theme', mode); } catch (e) { /* خاص */ }
+      paintMeta();
+    };
+    btn.addEventListener('click', function () {
+      var next = isDark() ? 'light' : 'dark';
+      if (!doc.startViewTransition || reduce) { apply(next); return; }
+      var r = btn.getBoundingClientRect();
+      var x = r.left + r.width / 2;
+      var y = r.top + r.height / 2;
+      var end = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+      root.classList.add('vt');
+      var t = doc.startViewTransition(function () { apply(next); });
+      t.ready.then(function () {
+        root.animate({ clipPath: ['circle(0px at ' + x + 'px ' + y + 'px)', 'circle(' + end + 'px at ' + x + 'px ' + y + 'px)'] },
+          { duration: 650, easing: 'cubic-bezier(.2,.75,.2,1)', pseudoElement: '::view-transition-new(root)' });
+      }).catch(function () {});
+      t.finished.then(function () { root.classList.remove('vt'); }, function () { root.classList.remove('vt'); });
     });
   });
-  document.querySelectorAll('.hero .reveal').forEach(function (el, i) {
-    el.style.setProperty('--d', (i * 0.07).toFixed(2) + 's');
-  });
-  if ('IntersectionObserver' in window && !reduce) {
+
+  /* ───────── الظهور التدريجي عند التمرير ───────── */
+  safe(function () {
+    var items = $$('.reveal');
+    // تتابع بسيط بين العناصر المتجاورة
+    var groups = new Map();
+    items.forEach(function (el) {
+      var p = el.parentNode;
+      if (!groups.has(p)) groups.set(p, 0);
+      var n = groups.get(p);
+      el.style.setProperty('--d', Math.min(n * 0.08, 0.48).toFixed(2) + 's');
+      groups.set(p, n + 1);
+    });
+    if (!('IntersectionObserver' in window) || reduce) {
+      items.forEach(function (el) { el.classList.add('in'); });
+      return;
+    }
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (en) {
-        if (en.isIntersecting) {
-          en.target.classList.add('in');
-          io.unobserve(en.target);
-        }
+        if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
       });
-    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
-    reveals.forEach(function (el) { io.observe(el); });
-  } else {
-    reveals.forEach(function (el) { el.classList.add('in'); });
-  }
-  window.__revealOk = true;
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.12 });
+    items.forEach(function (el) { io.observe(el); });
+  });
 
-  /* ───────── الكود الذي يُكتب تلقائياً ───────── */
-  var KW = /^(?:const|let|var|function|return|new|await|async|class|this|true|false|null|undefined|import|export|from|if|else|for|while|of|in)\b/;
-
-  function tokenize(line) {
-    var out = [];
-    var i = 0;
-    while (i < line.length) {
-      var rest = line.slice(i);
-      var m;
-      if (rest.indexOf('//') === 0) {
-        out.push(['c', rest]);
-        break;
-      }
-      if ((m = rest.match(/^(["'`])(?:\\.|(?!\1)[^\\])*\1?/))) out.push(['s', m[0]]);
-      else if ((m = rest.match(KW))) out.push(['k', m[0]]);
-      else if ((m = rest.match(/^\d+(?:\.\d+)?/))) out.push(['n', m[0]]);
-      else if ((m = rest.match(/^[A-Za-z_$][\w$]*(?=\s*:)/))) out.push(['p', m[0]]);
-      else if ((m = rest.match(/^[A-Za-z_$][\w$]*(?=\s*\()/))) out.push(['f', m[0]]);
-      else if ((m = rest.match(/^[A-Za-z_$][\w$]*/))) out.push(['', m[0]]);
-      else if ((m = rest.match(/^[{}\[\]();,.:=<>+\-*\/!&|?@#%^~]+/))) out.push(['o', m[0]]);
-      else if ((m = rest.match(/^\s+/))) out.push(['', m[0]]);
-      else out.push(['', String.fromCodePoint(rest.codePointAt(0))]);
-      i += out[out.length - 1][1].length;
-    }
-    return out;
-  }
-
-  function esc(s) {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  }
-
-  // سلسلة أحرف ملوّنة → HTML (الأحرف المتتالية بنفس اللون في span واحد)
-  function paint(chars) {
-    var html = '';
-    var cur = null;
-    var buf = '';
-    for (var i = 0; i <= chars.length; i++) {
-      var cls = i < chars.length ? chars[i][0] : null;
-      if (i === chars.length || cls !== cur) {
-        if (buf) html += cur ? '<span class="t-' + cur + '">' + esc(buf) + '</span>' : esc(buf);
-        buf = '';
-        cur = cls;
-      }
-      if (i < chars.length) buf += chars[i][1];
-    }
-    return html;
-  }
-
-  function charsOf(line) {
-    var list = [];
-    tokenize(line).forEach(function (t) {
-      Array.from(t[1]).forEach(function (ch) { list.push([t[0], ch]); });
+  /* ───────── حركة الواجهة مع التمرير (Parallax) ───────── */
+  safe(function () {
+    var hero = $('.hero');
+    var name = $('.hero__name');
+    var photo = $('.hero__photo');
+    if (!hero || reduce) return;
+    onScroll(function () {
+      var y = window.scrollY;
+      var h = hero.offsetHeight;
+      if (y > h) return;
+      if (name) name.style.transform = 'translate3d(0,' + (y * 0.32).toFixed(1) + 'px,0)';
+      if (photo) photo.style.transform = 'translate3d(0,' + (y * 0.1).toFixed(1) + 'px,0)';
     });
-    return list;
-  }
+  });
 
-  var codeOut = document.getElementById('code-out');
-  var codeSrc = document.getElementById('code-src');
-  if (codeOut && codeSrc) {
-    var lines = [];
-    try { lines = JSON.parse(codeSrc.textContent) || []; } catch (e) { lines = []; }
-    while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
-    var prepared = lines.map(charsOf);
+  /* ───────── الشرائط المتحركة تتسارع مع التمرير ───────── */
+  safe(function () {
+    if (reduce) return;
+    var tracks = $$('.ribbon__track, .logos__track');
+    if (!tracks.length || !tracks[0].getAnimations) return;
+    var lastY = window.scrollY;
+    var boost = 0;
+    var raf = 0;
+    var setRate = function (r) {
+      tracks.forEach(function (t) { t.getAnimations().forEach(function (a) { a.playbackRate = r; }); });
+    };
+    var decay = function () {
+      boost *= 0.92;
+      if (boost < 0.02) { boost = 0; setRate(1); raf = 0; return; }
+      setRate(1 + boost);
+      raf = requestAnimationFrame(decay);
+    };
+    onScroll(function () {
+      var y = window.scrollY;
+      boost = Math.min(5, boost + Math.abs(y - lastY) / 60);
+      lastY = y;
+      if (!raf) raf = requestAnimationFrame(decay);
+    });
+  });
 
-    function lineHtml(n, inner) {
-      return '<span class="ln" data-n="' + n + '">' + inner + '</span>';
-    }
+  /* ───────── خط "لماذا أنا" يمتلئ مع التمرير ───────── */
+  safe(function () {
+    var tl = $('.timeline');
+    if (!tl) return;
+    var items = $$('.tl', tl);
+    var update = function () {
+      var r = tl.getBoundingClientRect();
+      var line = window.innerHeight * 0.62;
+      var p = Math.max(0, Math.min(1, (line - r.top) / r.height));
+      tl.style.setProperty('--p', p.toFixed(3));
+      items.forEach(function (it) {
+        var dot = it.getBoundingClientRect().top + 30;
+        it.classList.toggle('is-on', dot < line);
+      });
+    };
+    onScroll(update);
+    update();
+  });
 
-    // نسخة كاملة مخفية تحجز الارتفاع النهائي، فلا تقفز الصفحة أثناء الكتابة
-    var ghost = document.createElement('code');
-    ghost.className = 'ghost';
-    ghost.setAttribute('aria-hidden', 'true');
-    ghost.innerHTML = prepared.map(function (c, i) { return lineHtml(i + 1, paint(c)); }).join('');
-    codeOut.parentNode.insertBefore(ghost, codeOut);
-    codeOut.parentNode.classList.add('is-typing');
-
-    var cursor = '<span class="cursor"></span>';
-
-    if (reduce || !prepared.length) {
-      codeOut.innerHTML = prepared.map(function (c, i) {
-        return lineHtml(i + 1, paint(c) + (i === prepared.length - 1 ? cursor : ''));
-      }).join('');
-    } else {
-      var li = 0;
-      var ci = 0;
-      var done = '';
-      codeOut.innerHTML = lineHtml(1, cursor);
-      var tick = function () {
-        if (li >= prepared.length) return;
-        var line = prepared[li];
-        ci++;
-        if (ci > line.length) {
-          done += lineHtml(li + 1, paint(line));
-          li++;
-          ci = 0;
-          if (li >= prepared.length) {
-            codeOut.innerHTML = done.replace(/<\/span>$/, cursor + '</span>');
-            return;
-          }
-          codeOut.innerHTML = done + lineHtml(li + 1, cursor);
-          setTimeout(tick, 260);
-          return;
-        }
-        codeOut.innerHTML = done + lineHtml(li + 1, paint(line.slice(0, ci)) + cursor);
-        var ch = line[ci - 1] ? line[ci - 1][1] : '';
-        var delay = 26 + Math.random() * 46;
-        if (/[,;{(]/.test(ch)) delay += 90;
-        if (ch === ' ' && ci < 4) delay = 8;
-        setTimeout(tick, delay);
+  /* ───────── عدّاد الأرقام ───────── */
+  safe(function () {
+    var counts = $$('.count[data-to]');
+    if (!counts.length || reduce || !('IntersectionObserver' in window)) return;
+    var run = function (el) {
+      var to = parseInt(el.getAttribute('data-to'), 10) || 0;
+      var t0 = null;
+      var dur = 1600;
+      var step = function (t) {
+        if (t0 === null) t0 = t;
+        var k = Math.min(1, (t - t0) / dur);
+        var eased = 1 - Math.pow(1 - k, 3);
+        el.textContent = String(Math.round(to * eased));
+        if (k < 1) requestAnimationFrame(step);
       };
-      // تبدأ الكتابة عندما تظهر نافذة الكود على الشاشة (على الجوال تكون أسفل الصفحة)
-      var start = function () { setTimeout(tick, 400); };
-      if ('IntersectionObserver' in window) {
-        var tio = new IntersectionObserver(function (es) {
-          if (es[0].isIntersecting) {
-            tio.disconnect();
-            start();
-          }
-        }, { threshold: 0.3 });
-        tio.observe(codeOut.parentNode);
-      } else {
-        start();
-      }
-    }
-  }
-
-  /* ───────── خلفية الكود المتساقط ───────── */
-  var canvas = document.getElementById('bg-code');
-  if (canvas && canvas.getContext) {
-    var ctx = canvas.getContext('2d');
-    var glyphs = '01{}[]()<>/=;:+*&|!?#$%constletfnreturnifelsePOSAIawaitasync=>'.split('');
-    var size = 15;
-    var cols = [];
-    var w = 0;
-    var h = 0;
-    var dpr = 1;
-
-    var setup = function () {
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
-      w = window.innerWidth;
-      h = window.innerHeight;
-      canvas.width = Math.floor(w * dpr);
-      canvas.height = Math.floor(h * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = '#060a13';
-      ctx.fillRect(0, 0, w, h);
-      var n = Math.ceil(w / (size * 1.6));
-      cols = [];
-      for (var i = 0; i < n; i++) {
-        cols.push({
-          x: i * size * 1.6,
-          y: Math.random() * -h,
-          speed: 0.35 + Math.random() * 0.75,
-          active: Math.random() < 0.42
-        });
-      }
+      requestAnimationFrame(step);
     };
-
-    var pick = function () {
-      return glyphs[(Math.random() * glyphs.length) | 0];
-    };
-
-    var drawStatic = function () {
-      ctx.font = size + 'px "JetBrains Mono", monospace';
-      for (var i = 0; i < (w * h) / 5000; i++) {
-        ctx.fillStyle = Math.random() < 0.15 ? 'rgba(34,211,238,0.35)' : 'rgba(100,116,139,0.25)';
-        ctx.fillText(pick(), Math.random() * w, Math.random() * h);
-      }
-    };
-
-    var last = 0;
-    var running = true;
-    var frame = function (t) {
-      if (!running) return;
-      requestAnimationFrame(frame);
-      if (t - last < 50) return;
-      last = t;
-      ctx.fillStyle = 'rgba(6,10,19,0.16)';
-      ctx.fillRect(0, 0, w, h);
-      ctx.font = size + 'px "JetBrains Mono", monospace';
-      for (var i = 0; i < cols.length; i++) {
-        var c = cols[i];
-        if (!c.active) continue;
-        var head = Math.random() < 0.08;
-        ctx.fillStyle = head ? 'rgba(165,243,252,0.9)' : (i % 5 === 0 ? 'rgba(139,92,246,0.55)' : 'rgba(34,211,238,0.42)');
-        ctx.fillText(pick(), c.x, c.y);
-        c.y += size * c.speed;
-        if (c.y > h + size) {
-          c.y = -size * (2 + Math.random() * 20);
-          c.speed = 0.35 + Math.random() * 0.75;
-          c.active = Math.random() < 0.5;
-        }
-      }
-    };
-
-    setup();
-    if (reduce) {
-      drawStatic();
-    } else {
-      requestAnimationFrame(frame);
-      document.addEventListener('visibilitychange', function () {
-        running = !document.hidden;
-        if (running) requestAnimationFrame(frame);
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) { io.unobserve(en.target); run(en.target); }
       });
-    }
-    var rt;
-    var lastW = window.innerWidth;
-    window.addEventListener('resize', function () {
-      clearTimeout(rt);
-      rt = setTimeout(function () {
-        // على الجوال يتغيّر الارتفاع مع شريط العنوان؛ نعيد الرسم فقط عند تغيّر العرض أو فرق كبير
-        if (Math.abs(window.innerWidth - lastW) < 2 && Math.abs(window.innerHeight - h) < 140) return;
-        lastW = window.innerWidth;
-        setup();
-        if (reduce) drawStatic();
-      }, 200);
-    });
-  }
+    }, { threshold: 0.6 });
+    counts.forEach(function (el) { el.textContent = '0'; io.observe(el); });
+  });
 
-  /* ───────── تسجيل النقرات على الروابط ───────── */
-  document.addEventListener('click', function (e) {
-    var a = e.target.closest ? e.target.closest('[data-track]') : null;
-    if (!a) return;
-    var body = new URLSearchParams({ k: a.getAttribute('data-track') });
+  /* ───────── زر "مشاريع أكثر" ───────── */
+  safe(function () {
+    var btn = $('[data-more]');
+    var works = $('.works');
+    if (!btn || !works) return;
+    var label = $('span', btn);
+    var orig = label ? label.textContent : '';
+    btn.addEventListener('click', function () {
+      var all = works.classList.toggle('is-all');
+      btn.setAttribute('aria-expanded', all ? 'true' : 'false');
+      if (label) label.textContent = all ? (ui.less || orig) : orig;
+      if (all) $$('.work--extra', works).forEach(function (w) { w.classList.add('in'); });
+    });
+  });
+
+  /* ───────── سلايدر آراء العملاء ───────── */
+  safe(function () {
+    var box = $('[data-slider]');
+    if (!box) return;
+    var slides = $$('.review', box);
+    if (slides.length < 2) return;
+    var i = 0;
+    var timer = null;
+    var show = function (n) {
+      slides[i].hidden = true;
+      slides[i].classList.remove('is-on');
+      i = (n + slides.length) % slides.length;
+      slides[i].hidden = false;
+      slides[i].classList.add('is-on');
+    };
+    var auto = function () { clearInterval(timer); if (!reduce) timer = setInterval(function () { show(i + 1); }, 7000); };
+    var prev = $('[data-prev]', box);
+    var next = $('[data-next]', box);
+    if (prev) prev.addEventListener('click', function () { show(i - 1); auto(); });
+    if (next) next.addEventListener('click', function () { show(i + 1); auto(); });
+    box.addEventListener('mouseenter', function () { clearInterval(timer); });
+    box.addEventListener('mouseleave', auto);
+    var sx = null;
+    box.addEventListener('touchstart', function (e) { sx = e.touches[0].clientX; }, { passive: true });
+    box.addEventListener('touchend', function (e) {
+      if (sx === null) return;
+      var dx = e.changedTouches[0].clientX - sx;
+      sx = null;
+      if (Math.abs(dx) < 40) return;
+      var rtl = root.getAttribute('dir') === 'rtl';
+      show(i + ((dx < 0) !== rtl ? 1 : -1));
+      auto();
+    }, { passive: true });
+    auto();
+  });
+
+  /* ───────── تسجيل النقرات على الروابط (للإحصائيات) ───────── */
+  function beacon(key) {
+    var body = new URLSearchParams({ k: key });
     try {
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon('track.php', body);
-      } else {
-        fetch('track.php', { method: 'POST', body: body, keepalive: true });
-      }
+      if (navigator.sendBeacon) navigator.sendBeacon('track.php', body);
+      else fetch('track.php', { method: 'POST', body: body, keepalive: true });
     } catch (err) { /* الإحصائيات لا تعطّل الرابط أبداً */ }
+  }
+  doc.addEventListener('click', function (e) {
+    var a = e.target.closest ? e.target.closest('[data-track]') : null;
+    if (a) beacon(a.getAttribute('data-track'));
+  });
+
+  /* ───────── نموذج التواصل: يفتح واتساب برسالة جاهزة ويحفظ نسخة ───────── */
+  safe(function () {
+    var form = $('form.form');
+    if (!form || !data.wa) return;
+    var note = $('.form__note', form);
+    var setNote = function (text, cls) {
+      if (!note) return;
+      note.textContent = text;
+      note.classList.remove('is-ok', 'is-err');
+      if (cls) note.classList.add(cls);
+    };
+    form.addEventListener('input', function (e) {
+      var f = e.target.closest('.field');
+      if (f) f.classList.remove('is-bad');
+    });
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var get = function (n) { var el = form.elements[n]; return el ? String(el.value || '').trim() : ''; };
+      if (get('website')) return;
+      var bad = [];
+      ['name', 'details'].forEach(function (n) {
+        if (!get(n)) { bad.push(n); form.elements[n].closest('.field').classList.add('is-bad'); }
+      });
+      if (bad.length) {
+        setNote(ui.err || '', 'is-err');
+        form.elements[bad[0]].focus();
+        return;
+      }
+      var rows = [
+        '*' + (ui.head || '') + '*',
+        '',
+        (ui.name || '') + ': ' + get('name')
+      ];
+      [['whatsapp', ui.wa], ['email', ui.email], ['company', ui.company], ['service', ui.service], ['budget', ui.budget], ['timeline', ui.time]].forEach(function (p) {
+        var v = get(p[0]);
+        if (v) rows.push((p[1] || p[0]) + ': ' + v);
+      });
+      rows.push('', (ui.details || '') + ':', get('details'));
+      var url = 'https://wa.me/' + data.wa + '?text=' + encodeURIComponent(rows.join('\n'));
+
+      // فتح واتساب يجب أن يحدث مباشرة مع الضغطة (وإلا يمنعه المتصفح)
+      var win = null;
+      try { win = window.open(url, '_blank'); } catch (err) { win = null; }
+      if (win) { try { win.opener = null; } catch (err) { /* */ } }
+
+      beacon('form');
+      var fd = new FormData(form);
+      fd.append('ajax', '1');
+      var btn = $('button[type=submit]', form);
+      if (btn) btn.disabled = true;
+      fetch(form.getAttribute('action') || 'contact.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) { return r.status; })
+        .catch(function () { return 0; })
+        .then(function (status) {
+          if (btn) btn.disabled = false;
+          if (status === 429) setNote(ui.limit || '', 'is-err');
+          else { setNote(ui.ok || '', 'is-ok'); form.reset(); }
+          if (!win) window.location.href = url;
+        });
+    });
+  });
+
+  /* ───────── زر المحادثة السريعة ───────── */
+  safe(function () {
+    var chat = $('.chat');
+    if (!chat) return;
+    var btn = $('.chat__btn', chat);
+    var pop = $('.chat__pop', chat);
+    var x = $('.chat__x', chat);
+    var set = function (open) {
+      chat.classList.toggle('is-open', open);
+      pop.hidden = !open;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    btn.addEventListener('click', function (e) { e.stopPropagation(); set(pop.hidden); });
+    if (x) x.addEventListener('click', function () { set(false); btn.focus(); });
+    doc.addEventListener('click', function (e) { if (!chat.contains(e.target)) set(false); });
+    doc.addEventListener('keydown', function (e) { if (e.key === 'Escape') set(false); });
+  });
+
+  /* ───────── زر العودة للأعلى مع دائرة تقدّم القراءة ───────── */
+  safe(function () {
+    var top = $('.totop');
+    if (!top) return;
+    onScroll(function () {
+      var max = doc.documentElement.scrollHeight - window.innerHeight;
+      var p = max > 0 ? window.scrollY / max : 0;
+      top.style.setProperty('--sp', p.toFixed(3));
+      top.classList.toggle('is-on', window.scrollY > 520);
+    });
+    runScroll();
   });
 })();

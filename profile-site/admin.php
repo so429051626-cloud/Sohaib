@@ -1,5 +1,5 @@
 <?php
-// لوحة تحكم صهيب قديح: إحصائيات الزوار + تعديل كل نصوص الصفحة + الصورة + كلمة المرور.
+// لوحة تحكم صهيب شوقي: إحصائيات الزوار + رسائل النموذج + تعديل كل نصوص الصفحة بالعربي والإنجليزي + الصور + كلمة المرور.
 
 declare(strict_types=1);
 require __DIR__ . '/inc/core.php';
@@ -16,81 +16,138 @@ header("Content-Security-Policy: default-src 'self'; img-src 'self' data: blob:;
 ensure_dirs();
 admin_session_start();
 
-const TABS = ['stats' => 'الإحصائيات', 'content' => 'تعديل الصفحة', 'photo' => 'الصورة', 'settings' => 'الإعدادات'];
+const TABS = ['stats' => 'الإحصائيات', 'messages' => 'الرسائل', 'content' => 'تعديل الصفحة', 'photo' => 'الصور', 'settings' => 'الإعدادات'];
 
-/* ───────── تعريف حقول التعديل ───────── */
+/* ───────── تعريف حقول التعديل ─────────
+ * كل حقل: [العنوان، النوع، أقصى طول (اختياري)، ترجمة؟]
+ * الحقول التي عليها "ترجمة" تظهر بخانتين: عربي وإنجليزي (key و key_en). */
+
+const TR = true;
 
 function content_schema(): array
 {
     return [
-        'hero' => ['title' => 'الواجهة الرئيسية', 'fields' => [
-            'hello'         => ['التحية فوق الاسم', 'text'],
+        'hero' => ['title' => 'الواجهة الرئيسية', 'note' => 'النص بين نجمتين *هكذا* يظهر باللون الأحمر.', 'fields' => [
             'name'          => ['الاسم بالعربي', 'text'],
-            'name_en'       => ['الاسم بالإنجليزي', 'text'],
-            'badge'         => ['الشارة الذهبية اللافتة', 'text'],
-            'headline'      => ['المسمّى الرئيسي', 'text'],
-            'subline'       => ['الوصف تحت المسمّى', 'textarea'],
-            'status'        => ['الحالة بجانب الصورة (اتركه فارغاً لإخفائها)', 'text'],
-            'btn_primary'   => ['نص زر واتساب', 'text'],
-            'btn_secondary' => ['نص زر الأعمال', 'text'],
+            'name_en'       => ['الاسم بالإنجليزي (يظهر كبيراً خلف الصورة)', 'text'],
+            'hello'         => ['التحية فوق العنوان', 'text', 0, TR],
+            'title_a'       => ['العنوان الأول (بجانب الصورة)', 'text', 0, TR],
+            'title_b'       => ['العنوان الثاني (الجهة الأخرى)', 'text', 0, TR],
+            'badge'         => ['الشارة تحت العنوان الثاني', 'text', 0, TR],
+            'status'        => ['الحالة بجانب النقطة الخضراء (اتركه فارغاً لإخفائها)', 'text', 0, TR],
+            'intro'         => ['النبذة القصيرة', 'textarea', 0, TR],
+            'btn_primary'   => ['نص الزر الأول', 'text', 0, TR],
+            'btn_secondary' => ['نص الزر الثاني', 'text', 0, TR],
+            'ribbon'        => ['كلمات الشريط المتحرك (كل كلمة في سطر)', 'textarea', 0, TR],
+            'headline'      => ['المسمّى الوظيفي (لجوجل)', 'text', 0, TR],
+            'loader_word'   => ['الكلمة في شاشة التحميل', 'text'],
+            'loader_tag'    => ['السطر الصغير في شاشة التحميل', 'text'],
         ]],
-        'code' => ['title' => 'الكود الذي يُكتب تلقائياً', 'fields' => [
-            'filename' => ['اسم الملف أعلى النافذة', 'text'],
-            'lines'    => ['أسطر الكود (كل سطر في سطر، يفضّل 5 إلى 7 أسطر)', 'code'],
+        'about' => ['title' => 'نبذة عني', 'fields' => [
+            'kicker'      => ['العنوان الصغير', 'text', 0, TR],
+            'title'       => ['عنوان القسم', 'text', 0, TR],
+            'badge_label' => ['الشارة: النص', 'text', 0, TR],
+            'badge_value' => ['الشارة: الرقم (مثل 3+)', 'text'],
+            'card_title'  => ['عنوان البطاقة', 'text', 0, TR],
+            'lead'        => ['السطر المميّز', 'textarea', 0, TR],
+            'text'        => ['النبذة (اترك سطراً فارغاً بين الفقرات)', 'textarea', 0, TR],
+            'tools_title' => ['عنوان الأدوات', 'text', 0, TR],
+            'tools'       => ['الأدوات: كل أداة في سطر بالشكل  رمز|اسم  مثل  Php|PHP', 'textarea', 0, TR],
+            'chips_title' => ['عنوان المجالات', 'text', 0, TR],
+            'chips'       => ['المجالات (كل مجال في سطر)', 'textarea', 0, TR],
         ]],
-        'about' => ['title' => 'النبذة', 'fields' => [
-            'kicker' => ['العنوان الصغير', 'text'],
-            'title'  => ['عنوان القسم', 'text'],
-            'lead'   => ['السطر المميّز', 'text'],
-            'text'   => ['النبذة', 'textarea'],
-            'chips'  => ['النقاط المختصرة (كل نقطة في سطر)', 'textarea'],
-        ]],
+        'why' => ['title' => 'لماذا تعمل معي', 'fields' => [
+            'kicker' => ['العنوان الصغير', 'text', 0, TR],
+            'title'  => ['عنوان القسم', 'text', 0, TR],
+            'text'   => ['الوصف', 'textarea', 0, TR],
+        ], 'list' => ['label' => 'سبب', 'main' => 'title', 'fields' => [
+            'title' => ['العنوان', 'text', 0, TR],
+            'text'  => ['الوصف', 'textarea', 0, TR],
+        ]]],
         'services' => ['title' => 'الخدمات', 'fields' => [
-            'kicker' => ['العنوان الصغير', 'text'],
-            'title'  => ['عنوان القسم', 'text'],
+            'kicker' => ['العنوان الصغير', 'text', 0, TR],
+            'title'  => ['عنوان القسم', 'text', 0, TR],
+            'more'   => ['نص الرابط أسفل كل بطاقة', 'text', 0, TR],
         ], 'list' => ['label' => 'خدمة', 'main' => 'title', 'fields' => [
-            'icon'  => ['الأيقونة', 'icon'],
-            'title' => ['اسم الخدمة', 'text'],
-            'text'  => ['الوصف', 'textarea'],
+            'icon'   => ['الأيقونة', 'icon'],
+            'cover'  => ['الكلمة الكبيرة على الصورة (بالإنجليزي مثل POS)', 'text'],
+            'title'  => ['اسم الخدمة', 'text', 0, TR],
+            'points' => ['النقاط (كل نقطة في سطر)', 'textarea', 0, TR],
+        ]]],
+        'sectors' => ['title' => 'القطاعات (الشريط المتحرك)', 'fields' => [
+            'kicker' => ['العنوان الصغير', 'text', 0, TR],
+            'title'  => ['عنوان القسم', 'text', 0, TR],
+        ], 'list' => ['label' => 'قطاع', 'main' => 'name', 'fields' => [
+            'icon' => ['الأيقونة', 'icon'],
+            'name' => ['الاسم', 'text', 0, TR],
+        ]]],
+        'stats' => ['title' => 'الأرقام', 'fields' => [], 'list' => ['label' => 'رقم', 'main' => 'num', 'fields' => [
+            'icon'   => ['الأيقونة', 'icon'],
+            'num'    => ['الرقم (أرقام فقط، يُعدّ تلقائياً)', 'text'],
+            'suffix' => ['بعد الرقم (مثل + أو /7)', 'text'],
+            'label'  => ['الوصف', 'text', 0, TR],
         ]]],
         'projects' => ['title' => 'الأعمال والمنصات', 'fields' => [
-            'kicker' => ['العنوان الصغير', 'text'],
-            'title'  => ['عنوان القسم', 'text'],
-            'cta'    => ['نص رابط الزيارة', 'text'],
+            'kicker' => ['العنوان الصغير', 'text', 0, TR],
+            'title'  => ['عنوان القسم', 'text', 0, TR],
+            'cta'    => ['نص رابط الزيارة', 'text', 0, TR],
+            'more'   => ['زر المزيد (يظهر عند وجود أكثر من 6 مشاريع)', 'text', 0, TR],
         ], 'list' => ['label' => 'مشروع', 'main' => 'name', 'fields' => [
-            'icon' => ['الأيقونة', 'icon'],
-            'name' => ['الاسم', 'text'],
-            'tag'  => ['التصنيف', 'text'],
-            'text' => ['الوصف', 'textarea'],
-            'url'  => ['الرابط', 'url'],
+            'icon'  => ['الأيقونة', 'icon'],
+            'name'  => ['الاسم', 'text', 0, TR],
+            'tag'   => ['التصنيف', 'text', 0, TR],
+            'text'  => ['الوصف', 'textarea', 0, TR],
+            'url'   => ['الرابط', 'url'],
+            'image' => ['رابط صورة للمشروع (اختياري، بدونها يظهر تصميم تلقائي)', 'url'],
+        ]]],
+        'reviews' => ['title' => 'آراء العملاء', 'note' => 'القسم مخفي حتى تضيف أول رأي حقيقي.', 'fields' => [
+            'kicker' => ['العنوان الصغير', 'text', 0, TR],
+            'title'  => ['عنوان القسم', 'text', 0, TR],
+        ], 'list' => ['label' => 'رأي', 'main' => 'name', 'fields' => [
+            'name'   => ['اسم العميل أو الشركة', 'text'],
+            'role'   => ['الصفة (مثل: صاحب متجر)', 'text', 0, TR],
+            'quote'  => ['الرأي', 'textarea', 0, TR],
+            'rating' => ['التقييم', 'rating'],
+            'logo'   => ['رابط شعار العميل (اختياري)', 'url'],
         ]]],
         'contact' => ['title' => 'التواصل والروابط', 'fields' => [
-            'kicker'         => ['العنوان الصغير', 'text'],
-            'title'          => ['عنوان القسم', 'text'],
-            'text'           => ['الوصف', 'textarea'],
-            'whatsapp'       => ['رقم واتساب مع مفتاح الدولة (أرقام فقط)', 'tel'],
-            'whatsapp_text'  => ['الرسالة الجاهزة عند فتح واتساب', 'text'],
-            'whatsapp_label' => ['اسم زر واتساب', 'text'],
-            'facebook'       => ['رابط فيسبوك', 'url'],
-            'facebook_label' => ['اسم زر فيسبوك', 'text'],
-            'tiktok'         => ['رابط تيك توك', 'url'],
-            'tiktok_label'   => ['اسم زر تيك توك', 'text'],
+            'kicker'        => ['العنوان الصغير', 'text', 0, TR],
+            'title'         => ['عنوان القسم', 'text', 0, TR],
+            'text'          => ['الوصف', 'textarea', 0, TR],
+            'whatsapp'      => ['رقم واتساب مع مفتاح الدولة (أرقام فقط)', 'tel'],
+            'whatsapp_text' => ['الرسالة الجاهزة عند فتح واتساب', 'text', 0, TR],
+            'phone'         => ['رقم الاتصال المباشر (اتركه فارغاً لإخفائه)', 'tel'],
+            'email'         => ['البريد الإلكتروني (اختياري)', 'email'],
+            'location'      => ['الموقع / الدولة', 'text', 0, TR],
+            'facebook'      => ['رابط فيسبوك', 'url'],
+            'tiktok'        => ['رابط تيك توك', 'url'],
+            'instagram'     => ['رابط إنستغرام (اختياري)', 'url'],
+            'github'        => ['رابط GitHub (اختياري)', 'url'],
+            'linkedin'      => ['رابط لينكدإن (اختياري)', 'url'],
+            'cta_kicker'    => ['التذييل: السطر الصغير', 'text', 0, TR],
+            'cta_title'     => ['التذييل: العنوان الكبير', 'text', 0, TR],
+            'cta_text'      => ['التذييل: الوصف', 'text', 0, TR],
+            'cta_btn'       => ['التذييل: الزر الأول', 'text', 0, TR],
+            'cta_btn2'      => ['التذييل: زر واتساب', 'text', 0, TR],
         ]],
         'nav' => ['title' => 'القائمة العلوية', 'fields' => [
-            'about'    => ['رابط النبذة', 'text'],
-            'services' => ['رابط الخدمات', 'text'],
-            'projects' => ['رابط الأعمال', 'text'],
-            'contact'  => ['رابط التواصل', 'text'],
-            'cta'      => ['زر المراسلة', 'text'],
+            'home'     => ['الرئيسية', 'text', 0, TR],
+            'about'    => ['نبذة', 'text', 0, TR],
+            'services' => ['الخدمات', 'text', 0, TR],
+            'sectors'  => ['القطاعات', 'text', 0, TR],
+            'projects' => ['الأعمال', 'text', 0, TR],
+            'contact'  => ['التواصل', 'text', 0, TR],
+            'cta'      => ['زر المراسلة', 'text', 0, TR],
         ]],
         'footer' => ['title' => 'التذييل', 'fields' => [
-            'name'    => ['الاسم في التذييل', 'text'],
-            'rights'  => ['عبارة الحقوق', 'text'],
-            'en_line' => ['السطر الإنجليزي', 'text'],
+            'name'    => ['الاسم في التذييل', 'text', 0, TR],
+            'desc'    => ['الوصف القصير', 'textarea', 0, TR],
+            'rights'  => ['عبارة الحقوق', 'text', 0, TR],
+            'en_line' => ['السطر الإنجليزي الصغير (لجوجل)', 'text'],
         ]],
         'seo' => ['title' => 'الظهور في جوجل (SEO)', 'fields' => [
-            'title'       => ['عنوان الصفحة في نتائج البحث (أفضل طول: 50 إلى 65 حرفاً)', 'text', 70],
-            'description' => ['الوصف في نتائج البحث (أفضل طول: 120 إلى 160 حرفاً)', 'textarea', 160],
+            'title'       => ['عنوان الصفحة في نتائج البحث (أفضل طول: 50 إلى 65 حرفاً)', 'text', 70, TR],
+            'description' => ['الوصف في نتائج البحث (أفضل طول: 120 إلى 160 حرفاً)', 'textarea', 160, TR],
             'keywords'    => ['الكلمات المفتاحية (مفصولة بفواصل)', 'textarea'],
             'alt_names'   => ['كل أشكال كتابة اسمك التي قد يبحث بها الناس (كل شكل في سطر)', 'textarea'],
             'site_url'    => ['رابط الصفحة النهائي (مثال: https://sohaib.example.com/)', 'url'],
@@ -112,18 +169,23 @@ function clean_field(string $type, $raw): string
 {
     switch ($type) {
         case 'url':
-            return safe_url(clean_text($raw, 500));
+            $v = clean_text($raw, 500);
+            // صورة مرفوعة على نفس الموقع (uploads/...) مسموحة كما هي
+            if (preg_match('#^uploads/[a-z0-9_-]+\.(jpe?g|png|webp)$#', $v)) {
+                return $v;
+            }
+            return safe_url($v);
         case 'tel':
             return digits(clean_text($raw, 30));
+        case 'email':
+            $v = clean_text($raw, 120);
+            return filter_var($v, FILTER_VALIDATE_EMAIL) ? $v : '';
         case 'icon':
             $v = clean_text($raw, 40);
             return array_key_exists($v, selectable_icons()) ? $v : 'code-xml';
-        case 'code':
-            // الكود: نحافظ على المسافات في بداية الأسطر
-            $v = is_string($raw) ? str_replace(["\r\n", "\r"], "\n", $raw) : '';
-            $v = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $v) ?? '';
-            $lines = array_slice(explode("\n", rtrim($v)), 0, 14);
-            return mb_substr(implode("\n", array_map('rtrim', $lines)), 0, 1500, 'UTF-8');
+        case 'rating':
+            $n = (int) clean_text($raw, 2);
+            return (string) max(1, min(5, $n ?: 5));
         default:
             return clean_text($raw);
     }
@@ -137,8 +199,10 @@ function save_content_from_post(array $post): bool
     foreach ($schema as $sec => $def) {
         $in = isset($post[$sec]) && is_array($post[$sec]) ? $post[$sec] : [];
         foreach ($def['fields'] as $key => $f) {
-            if (array_key_exists($key, $in)) {
-                $new[$sec][$key] = clean_field($f[1], $in[$key]);
+            foreach (!empty($f[3]) ? [$key, $key . '_en'] : [$key] as $k) {
+                if (array_key_exists($k, $in)) {
+                    $new[$sec][$k] = clean_field($f[1], $in[$k]);
+                }
             }
         }
         if (isset($def['list'])) {
@@ -151,8 +215,11 @@ function save_content_from_post(array $post): bool
                 $item = [];
                 foreach ($def['list']['fields'] as $key => $f) {
                     $item[$key] = clean_field($f[1], $row[$key] ?? '');
+                    if (!empty($f[3])) {
+                        $item[$key . '_en'] = clean_field($f[1], $row[$key . '_en'] ?? '');
+                    }
                 }
-                if ($item[$def['list']['main']] !== '' && count($items) < 20) {
+                if ($item[$def['list']['main']] !== '' && count($items) < 24) {
                     $items[] = $item;
                 }
             }
@@ -165,8 +232,10 @@ function save_content_from_post(array $post): bool
         $gv = $m[1];
     }
     $new['seo']['google_verification'] = preg_replace('/[^A-Za-z0-9_\-]/', '', $gv) ?? '';
-    if ($new['hero']['name'] === '') {
-        $new['hero']['name'] = $current['hero']['name'];
+    foreach (['name', 'name_en'] as $k) {
+        if ($new['hero'][$k] === '') {
+            $new['hero'][$k] = $current['hero'][$k];
+        }
     }
 
     return store_update('content', function () use ($new) {
@@ -225,7 +294,7 @@ function handle_avatar_upload(): string
     $name = 'avatar-' . bin2hex(random_bytes(6));
     $rel = '';
 
-    // إن توفّرت مكتبة GD: نقصّ الصورة مربّعاً 512×512 ونعيد حفظها (يحذف أي بيانات مخفية فيها)
+    // إن توفّرت مكتبة GD: نقصّ الصورة مربّعاً (حتى 900×900) ونعيد حفظها (يحذف أي بيانات مخفية فيها)
     if (function_exists('imagecreatetruecolor') && function_exists('imagejpeg')) {
         @ini_set('memory_limit', '256M');
         $src = null;
@@ -258,9 +327,10 @@ function handle_avatar_upload(): string
             $side = min($w, $h);
             $x = (int) (($w - $side) / 2);
             $y = $h > $w ? (int) (($h - $side) * 0.25) : 0; // الصور الطولية: الوجه غالباً في الأعلى
-            $dst = imagecreatetruecolor(512, 512);
-            imagefill($dst, 0, 0, imagecolorallocate($dst, 10, 17, 32));
-            imagecopyresampled($dst, $src, 0, 0, $x, $y, 512, 512, $side, $side);
+            $out = min(900, $side);
+            $dst = imagecreatetruecolor($out, $out);
+            imagefill($dst, 0, 0, imagecolorallocate($dst, 20, 6, 8));
+            imagecopyresampled($dst, $src, 0, 0, $x, $y, $out, $out, $side, $side);
             if (@imagejpeg($dst, UPLOAD_DIR . '/' . $name . '.jpg', 88)) {
                 $rel = 'uploads/' . $name . '.jpg';
             }
@@ -279,6 +349,87 @@ function handle_avatar_upload(): string
         return 'تعذّر الحفظ: تأكد أن مجلد data قابل للكتابة وأن مساحة الاستضافة غير ممتلئة.';
     }
     return '';
+}
+
+// صورة الواجهة: PNG أو WEBP بخلفية شفافة، تُصغَّر حتى 1400 بكسل ارتفاعاً مع الحفاظ على الشفافية
+function handle_hero_upload(): string
+{
+    $f = $_FILES['hero'] ?? null;
+    if (!is_array($f) || is_array($f['error'] ?? null)) {
+        return 'لم تختر صورة.';
+    }
+    if ((int) $f['error'] !== UPLOAD_ERR_OK) {
+        return upload_error_text((int) $f['error']);
+    }
+    if ((int) $f['size'] > 8 * 1024 * 1024) {
+        return 'حجم الصورة أكبر من 8 ميغابايت.';
+    }
+    if (!is_uploaded_file($f['tmp_name'])) {
+        return 'تعذّر رفع الصورة.';
+    }
+    $info = @getimagesize($f['tmp_name']);
+    $types = [IMAGETYPE_PNG => 'png', IMAGETYPE_WEBP => 'webp'];
+    if (!$info || !isset($types[$info[2]])) {
+        return 'صورة الواجهة يجب أن تكون PNG أو WEBP بخلفية شفافة (مقصوصة).';
+    }
+    if ($info[0] < 200 || $info[1] < 200 || $info[0] > 8000 || $info[1] > 8000 || $info[0] * $info[1] > 25000000) {
+        return 'أبعاد الصورة غير مناسبة.';
+    }
+    ensure_dirs();
+    if (!is_file(UPLOAD_DIR . '/.htaccess')) {
+        @file_put_contents(UPLOAD_DIR . '/.htaccess', "<IfModule mod_rewrite.c>\n  RewriteEngine On\n  RewriteRule \\.(?i:php[0-9]?|phtml|phar|pl|py|cgi|sh|asp|aspx|jsp)$ - [F,L]\n</IfModule>\n");
+    }
+    $name = 'hero-' . bin2hex(random_bytes(6));
+    $rel = '';
+    $decoder = $info[2] === IMAGETYPE_PNG ? 'imagecreatefrompng' : 'imagecreatefromwebp';
+    if (function_exists('imagecreatetruecolor') && function_exists($decoder)) {
+        @ini_set('memory_limit', '256M');
+        $src = @$decoder($f['tmp_name']);
+        if (!$src) {
+            return 'تعذّر قراءة الصورة (قد تكون تالفة). جرّب صورة أخرى.';
+        }
+        $w = imagesx($src);
+        $h = imagesy($src);
+        $scale = min(1, 1400 / $h);
+        $nw = max(1, (int) round($w * $scale));
+        $nh = max(1, (int) round($h * $scale));
+        $dst = imagecreatetruecolor($nw, $nh);
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        imagefill($dst, 0, 0, imagecolorallocatealpha($dst, 0, 0, 0, 127));
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+        if (function_exists('imagewebp') && @imagewebp($dst, UPLOAD_DIR . '/' . $name . '.webp', 86)) {
+            $rel = 'uploads/' . $name . '.webp';
+        } elseif (function_exists('imagepng') && @imagepng($dst, UPLOAD_DIR . '/' . $name . '.png', 8)) {
+            $rel = 'uploads/' . $name . '.png';
+        }
+    }
+    if ($rel === '') {
+        $ext = $types[$info[2]];
+        if (!@move_uploaded_file($f['tmp_name'], UPLOAD_DIR . '/' . $name . '.' . $ext)) {
+            return 'تعذّر حفظ الصورة على الاستضافة (تأكد من صلاحيات مجلد uploads).';
+        }
+        $rel = 'uploads/' . $name . '.' . $ext;
+    }
+    if (!set_hero_photo($rel)) {
+        @unlink(APP_ROOT . '/' . $rel);
+        return SAVE_FAILED;
+    }
+    return '';
+}
+
+function set_hero_photo(string $rel): bool
+{
+    $old = content()['hero_photo'];
+    $ok = store_update('content', function (array $c) use ($rel) {
+        $c = merge_content(default_content(), $c);
+        $c['hero_photo'] = $rel;
+        return $c;
+    });
+    if ($ok && $old !== '' && $old !== $rel && preg_match('#^uploads/hero-[a-f0-9]+\.(png|webp)$#', $old)) {
+        @unlink(APP_ROOT . '/' . $old);
+    }
+    return $ok;
 }
 
 function set_avatar(string $rel): bool
@@ -307,9 +458,9 @@ function ini_bytes(string $v): int
     return $n > 0 ? $n : PHP_INT_MAX;
 }
 
-function upload_limit(): int
+function upload_limit(int $max = 6): int
 {
-    return min(6 * 1048576, ini_bytes((string) ini_get('upload_max_filesize')), ini_bytes((string) ini_get('post_max_size')) - 65536);
+    return min($max * 1048576, ini_bytes((string) ini_get('upload_max_filesize')), ini_bytes((string) ini_get('post_max_size')) - 65536);
 }
 
 const SAVE_FAILED = 'تعذّر الحفظ: تأكد أن مجلد data قابل للكتابة وأن مساحة الاستضافة غير ممتلئة.';
@@ -395,11 +546,45 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 break;
             case 'reset_avatar':
                 if (set_avatar('')) {
-                    flash('تمت إعادة الصورة الرمزية الافتراضية.');
+                    flash('تمت إعادة صورة الموقع الأصلية.');
                 } else {
                     flash(SAVE_FAILED, 'err');
                 }
                 $tab = 'photo';
+                break;
+            case 'upload_hero':
+                $err = handle_hero_upload();
+                flash($err === '' ? 'تم تحديث صورة الواجهة.' : $err, $err === '' ? 'ok' : 'err');
+                $tab = 'photo';
+                break;
+            case 'reset_hero':
+                if (set_hero_photo('')) {
+                    flash('تمت إعادة صورة الواجهة الأصلية.');
+                } else {
+                    flash(SAVE_FAILED, 'err');
+                }
+                $tab = 'photo';
+                break;
+            case 'delete_message':
+                $tab = 'messages';
+                $id = req_str($_POST, 'id');
+                $ok = store_update('messages', function (array $m) use ($id) {
+                    $list = isset($m['list']) && is_array($m['list']) ? $m['list'] : [];
+                    $m['list'] = array_values(array_filter($list, function ($r) use ($id) { return is_array($r) && ($r['id'] ?? '') !== $id; }));
+                    return $m;
+                });
+                flash($ok ? 'تم حذف الرسالة.' : SAVE_FAILED, $ok ? 'ok' : 'err');
+                break;
+            case 'delete_all_messages':
+                $tab = 'messages';
+                if (req_str($_POST, 'confirm') !== 'yes') {
+                    flash('ضع علامة التأكيد أولاً لحذف كل الرسائل.', 'err');
+                    break;
+                }
+                $ok = store_update('messages', function () {
+                    return ['list' => []];
+                });
+                flash($ok ? 'تم حذف كل الرسائل.' : SAVE_FAILED, $ok ? 'ok' : 'err');
                 break;
             case 'change_password':
                 $tab = 'settings';
@@ -516,6 +701,16 @@ function render_field(string $name, string $label, string $type, string $value, 
         case 'tel':
             $html .= '<input id="' . $id . '" type="text" dir="ltr" inputmode="tel" name="' . e($name) . '" value="' . e($value) . '">';
             break;
+        case 'email':
+            $html .= '<input id="' . $id . '" type="email" dir="ltr" autocapitalize="off" spellcheck="false" name="' . e($name) . '" value="' . e($value) . '">';
+            break;
+        case 'rating':
+            $html .= '<select id="' . $id . '" name="' . e($name) . '">';
+            for ($r = 5; $r >= 1; $r--) {
+                $html .= '<option value="' . $r . '"' . ((string) $r === $value ? ' selected' : '') . '>' . str_repeat('★', $r) . ' (' . $r . ')</option>';
+            }
+            $html .= '</select>';
+            break;
         default:
             $html .= '<input id="' . $id . '" type="text" name="' . e($name) . '" value="' . e($value) . '"' . $counter . '>';
     }
@@ -525,7 +720,36 @@ function render_field(string $name, string $label, string $type, string $value, 
     return $html . '</div>';
 }
 
+// حقل بخانتين: عربي وإنجليزي جنباً إلى جنب
+function render_pair(string $name, string $nameEn, string $label, string $type, string $ar, string $en, int $max = 0): string
+{
+    return '<div class="pair">'
+        . render_field($name, $label, $type, $ar, $max)
+        . str_replace('<div class="field">', '<div class="field field--en" dir="ltr">', render_field($nameEn, 'English', $type, $en, $max))
+        . '</div>';
+}
+
+function render_def_field(string $base, string $key, array $f, array $vals): string
+{
+    $val = (string) ($vals[$key] ?? '');
+    if ($f[1] === 'icon' && $val === '') {
+        $val = 'code-xml';
+    }
+    if (!empty($f[3])) {
+        return render_pair("{$base}[{$key}]", "{$base}[{$key}_en]", $f[0], $f[1], $val, (string) ($vals[$key . '_en'] ?? ''), (int) ($f[2] ?? 0));
+    }
+    return render_field("{$base}[{$key}]", $f[0], $f[1], $val, (int) ($f[2] ?? 0));
+}
+
 $flash = is_logged_in() ? take_flash() : null;
+$unread = 0;
+if (is_logged_in()) {
+    foreach (messages() as $m) {
+        if (!empty($m['new'])) {
+            $unread++;
+        }
+    }
+}
 $c = content();
 ?><!doctype html>
 <html lang="ar" dir="rtl">
@@ -600,9 +824,9 @@ $c = content();
   </div>
   <nav class="tabs" aria-label="أقسام اللوحة">
     <?php
-    $tabIcons = ['stats' => 'chart-column', 'content' => 'pencil', 'photo' => 'image', 'settings' => 'settings'];
+    $tabIcons = ['stats' => 'chart-column', 'messages' => 'inbox', 'content' => 'pencil', 'photo' => 'image', 'settings' => 'settings'];
     foreach (TABS as $k => $label): ?>
-      <a href="<?= e($self . '?tab=' . $k) ?>" class="<?= $tab === $k ? 'is-on' : '' ?>"<?= $tab === $k ? ' aria-current="page"' : '' ?>><?= icon($tabIcons[$k]) ?><span><?= e($label) ?></span></a>
+      <a href="<?= e($self . '?tab=' . $k) ?>" class="<?= $tab === $k ? 'is-on' : '' ?>"<?= $tab === $k ? ' aria-current="page"' : '' ?>><?= icon($tabIcons[$k]) ?><span><?= e($label) ?></span><?php if ($k === 'messages' && $unread > 0): ?><b class="badge-n"><?= $unread ?></b><?php endif; ?></a>
     <?php endforeach; ?>
   </nav>
 </header>
@@ -708,24 +932,24 @@ $c = content();
   <?php elseif ($tab === 'content'): ?>
   <form method="post" action="<?= e($self) ?>" class="editor">
     <?= csrf_field() ?><input type="hidden" name="action" value="save_content">
-    <p class="note"><?= icon('pencil') ?>عدّل أي نص ثم اضغط "حفظ". التعديل يظهر على الصفحة فوراً. اترك عنصر القائمة فارغاً لحذفه.</p>
+    <p class="note"><?= icon('pencil') ?>عدّل أي نص ثم اضغط "حفظ". التعديل يظهر على الصفحة فوراً. اترك عنصر القائمة فارغاً لحذفه. خانة English هي النسخة الإنجليزية (زر EN في الصفحة)، ولو تركتها فارغة يظهر النص العربي.</p>
     <?php $first = true; foreach (content_schema() as $sec => $def): ?>
       <details class="panel group"<?= $first ? ' open' : '' ?>>
         <summary><h2><?= e($def['title']) ?></h2><?= icon('arrow-up-left', 'i chev') ?></summary>
         <div class="group__body">
+          <?php if (!empty($def['note'])): ?><p class="note"><?= e($def['note']) ?></p><?php endif; ?>
           <?php foreach ($def['fields'] as $key => $f): ?>
-            <?= render_field("{$sec}[{$key}]", $f[0], $f[1], (string) $c[$sec][$key], (int) ($f[2] ?? 0)) ?>
+            <?= render_def_field($sec, $key, $f, $c[$sec]) ?>
           <?php endforeach; ?>
           <?php if (isset($def['list'])):
               $items = $c[$sec]['items'];
-              $items[] = array_fill_keys(array_keys($def['list']['fields']), '');
+              $items[] = [];
               foreach ($items as $i => $item):
                   $isNew = $i === count($items) - 1; ?>
               <fieldset class="item<?= $isNew ? ' item--new' : '' ?>">
                 <legend><?= $isNew ? 'إضافة ' . e($def['list']['label']) . ' جديد' : e($def['list']['label']) . ' ' . ($i + 1) ?></legend>
                 <?php foreach ($def['list']['fields'] as $key => $f): ?>
-                  <?php $val = (string) ($item[$key] ?? ''); if ($f[1] === 'icon' && $val === '') { $val = 'code-xml'; } ?>
-                  <?= render_field("{$sec}[items][{$i}][{$key}]", $f[0], $f[1], $val) ?>
+                  <?= render_def_field("{$sec}[items][{$i}]", $key, $f, $item) ?>
                 <?php endforeach; ?>
               </fieldset>
           <?php endforeach; endif; ?>
@@ -738,26 +962,105 @@ $c = content();
     </div>
   </form>
 
-  <?php elseif ($tab === 'photo'): ?>
+  <?php elseif ($tab === 'photo'): $limitMb = rtrim(rtrim(number_format(upload_limit() / 1048576, 1), '0'), '.'); $heroP = hero_photo_path(); ?>
   <section class="panel photo">
-    <img src="<?= e(asset(avatar_path())) ?>" alt="الصورة الحالية" width="160" height="160">
+    <img src="<?= e(asset($heroP !== '' ? $heroP : 'assets/img/hero-640.webp')) ?>" alt="صورة الواجهة الحالية" width="160" height="190" class="photo__cut">
     <div>
-      <h2>الصورة الشخصية</h2>
-      <?php $limitMb = rtrim(rtrim(number_format(upload_limit() / 1048576, 1), '0'), '.'); ?>
-      <p class="muted">تظهر في الواجهة والقائمة العلوية ونتائج جوجل. الأفضل صورة مربعة واضحة للوجه (JPG أو PNG أو WEBP). الصور الكبيرة تُصغَّر تلقائياً قبل الرفع، وحد الاستضافة <?= e($limitMb) ?> ميغابايت.</p>
-      <form method="post" action="<?= e($self) ?>" enctype="multipart/form-data" class="upload" data-limit="<?= (int) upload_limit() ?>">
-        <?= csrf_field() ?><input type="hidden" name="action" value="upload_avatar">
-        <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp" required>
-        <button class="btn btn--primary" type="submit"><?= icon('upload') ?>رفع الصورة</button>
+      <h2>صورة الواجهة (المقصوصة)</h2>
+      <p class="muted">تظهر كبيرة أمام اسمك في أعلى الصفحة وعلى بطاقات الخدمات. يجب أن تكون <b>PNG أو WEBP بخلفية شفافة</b> (الشخص فقط بدون خلفية)، ويُفضّل أن تظهر من الرأس حتى منتصف الجسم. حد الاستضافة <?= e($limitMb) ?> ميغابايت.</p>
+      <form method="post" action="<?= e($self) ?>" enctype="multipart/form-data" class="upload" data-alpha="1" data-limit="<?= (int) upload_limit(8) ?>">
+        <?= csrf_field() ?><input type="hidden" name="action" value="upload_hero">
+        <input type="file" name="hero" accept="image/png,image/webp" required>
+        <button class="btn btn--primary" type="submit"><?= icon('upload') ?>رفع صورة الواجهة</button>
       </form>
-      <?php if ($c['avatar'] !== ''): ?>
+      <?php if ($c['hero_photo'] !== ''): ?>
       <form method="post" action="<?= e($self) ?>">
-        <?= csrf_field() ?><input type="hidden" name="action" value="reset_avatar">
-        <button class="btn btn--ghost" type="submit"><?= icon('rotate-ccw') ?>إرجاع الصورة الرمزية الافتراضية</button>
+        <?= csrf_field() ?><input type="hidden" name="action" value="reset_hero">
+        <button class="btn btn--ghost" type="submit"><?= icon('rotate-ccw') ?>إرجاع صورة الواجهة الأصلية</button>
       </form>
       <?php endif; ?>
     </div>
   </section>
+  <section class="panel photo">
+    <img src="<?= e(asset(avatar_path())) ?>" alt="صورة الموقع الحالية" width="160" height="160">
+    <div>
+      <h2>صورة الموقع</h2>
+      <p class="muted">تظهر في قسم "نبذة" داخل الشكل الدائري، وفي نتائج جوجل ولوحة التحكم. الأفضل صورة مربعة واضحة للوجه (JPG أو PNG أو WEBP). الصور الكبيرة تُصغَّر تلقائياً قبل الرفع.</p>
+      <form method="post" action="<?= e($self) ?>" enctype="multipart/form-data" class="upload" data-limit="<?= (int) upload_limit() ?>">
+        <?= csrf_field() ?><input type="hidden" name="action" value="upload_avatar">
+        <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp" required>
+        <button class="btn btn--primary" type="submit"><?= icon('upload') ?>رفع صورة الموقع</button>
+      </form>
+      <?php if ($c['avatar'] !== ''): ?>
+      <form method="post" action="<?= e($self) ?>">
+        <?= csrf_field() ?><input type="hidden" name="action" value="reset_avatar">
+        <button class="btn btn--ghost" type="submit"><?= icon('rotate-ccw') ?>إرجاع صورة الموقع الأصلية</button>
+      </form>
+      <?php endif; ?>
+    </div>
+  </section>
+  <p class="note"><?= icon('image') ?>صورة المشاركة على واتساب وفيسبوك هي الملف <b dir="ltr">assets/og.jpg</b> (1200×630)، ويمكن استبدالها بصورة بنفس الاسم من مدير الملفات.</p>
+
+  <?php elseif ($tab === 'messages'):
+      $msgs = messages();
+      // نعلّم الرسائل كمقروءة بعد عرضها
+      if ($unread > 0) {
+          store_update('messages', function (array $m) {
+              $list = isset($m['list']) && is_array($m['list']) ? $m['list'] : [];
+              foreach ($list as $i => $r) {
+                  if (is_array($r)) {
+                      $list[$i]['new'] = 0;
+                  }
+              }
+              $m['list'] = $list;
+              return $m;
+          });
+      }
+  ?>
+  <?php if (!$msgs): ?>
+  <section class="panel empty-box">
+    <?= icon('inbox') ?>
+    <h2>لا توجد رسائل بعد</h2>
+    <p class="muted">عندما يملأ زائر نموذج "تواصل معي" في الصفحة، تُفتح الرسالة له جاهزة على واتساب وتُحفظ نسخة منها هنا.</p>
+  </section>
+  <?php else: ?>
+  <div class="msgs">
+    <?php foreach ($msgs as $m):
+        $wa = digits((string) ($m['whatsapp'] ?? ''));
+        if (strlen($wa) === 10 && $wa[0] === '0') {
+            $wa = '970' . substr($wa, 1); // رقم محلي فلسطيني 059... ← 97059...
+        } ?>
+    <article class="panel msg<?= !empty($m['new']) ? ' msg--new' : '' ?>">
+      <header class="msg__head">
+        <h2><?= e((string) ($m['name'] ?? '')) ?><?php if (!empty($m['new'])): ?><span class="tag-new">جديدة</span><?php endif; ?></h2>
+        <time dir="ltr"><?= e(date('Y-m-d H:i', (int) ($m['t'] ?? 0))) ?></time>
+      </header>
+      <dl class="msg__meta">
+        <?php foreach (['service' => 'الخدمة', 'company' => 'المشروع / الشركة', 'budget' => 'الميزانية', 'timeline' => 'المدة'] as $k => $lbl): if (trim((string) ($m[$k] ?? '')) === '') continue; ?>
+        <div><dt><?= e($lbl) ?></dt><dd><?= e((string) $m[$k]) ?></dd></div>
+        <?php endforeach; ?>
+        <?php if (($m['lang'] ?? '') === 'en'): ?><div><dt>اللغة</dt><dd>English</dd></div><?php endif; ?>
+      </dl>
+      <p class="msg__body"><?= nl2br(e((string) ($m['details'] ?? ''))) ?></p>
+      <div class="msg__actions">
+        <?php if ($wa !== ''): ?><a class="btn btn--primary btn--sm" href="https://wa.me/<?= e($wa) ?>" target="_blank" rel="noopener"><?= icon('whatsapp') ?><span dir="ltr"><?= e((string) $m['whatsapp']) ?></span></a><?php endif; ?>
+        <?php if (!empty($m['email'])): ?><a class="btn btn--ghost btn--sm" href="mailto:<?= e((string) $m['email']) ?>"><?= icon('mail') ?><span dir="ltr"><?= e((string) $m['email']) ?></span></a><?php endif; ?>
+        <form method="post" action="<?= e($self) ?>" class="msg__del">
+          <?= csrf_field() ?><input type="hidden" name="action" value="delete_message"><input type="hidden" name="id" value="<?= e((string) ($m['id'] ?? '')) ?>">
+          <button class="btn btn--danger btn--sm" type="submit"><?= icon('trash-2') ?>حذف</button>
+        </form>
+      </div>
+    </article>
+    <?php endforeach; ?>
+  </div>
+  <section class="panel">
+    <form method="post" action="<?= e($self) ?>" class="stack">
+      <?= csrf_field() ?><input type="hidden" name="action" value="delete_all_messages">
+      <label class="check"><input type="checkbox" name="confirm" value="yes" required> نعم، أريد حذف كل الرسائل (<?= count($msgs) ?>)</label>
+      <button class="btn btn--danger" type="submit"><?= icon('trash-2') ?>حذف كل الرسائل</button>
+    </form>
+  </section>
+  <?php endif; ?>
 
   <?php else: ?>
   <div class="cols">
@@ -791,7 +1094,7 @@ $c = content();
   </section>
   <?php endif; ?>
 </main>
-<footer class="foot">م. صهيب قديح · لوحة التحكم</footer>
+<footer class="foot"><?= e($c['footer']['name']) ?> · لوحة التحكم</footer>
 <script src="<?= e(asset('assets/admin.js')) ?>" defer></script>
 <?php endif; ?>
 </body>

@@ -26,11 +26,13 @@
     });
   }
 
-  // تصغير الصورة في المتصفح قبل الرفع: صور الجوال (3 إلى 8 ميغابايت) تتجاوز حد أغلب الاستضافات
-  var upload = document.querySelector('form.upload');
-  if (upload && window.FileReader && window.DataTransfer) {
+  // تصغير الصورة في المتصفح قبل الرفع: صور الجوال (3 إلى 8 ميغابايت) تتجاوز حد أغلب الاستضافات.
+  // صورة الواجهة (data-alpha) تُحفظ بصيغة تحافظ على الخلفية الشفافة.
+  document.querySelectorAll('form.upload').forEach(function (upload) {
+    if (!window.FileReader || !window.DataTransfer) return;
     var input = upload.querySelector('input[type=file]');
     var limit = parseInt(upload.getAttribute('data-limit'), 10) || 2097152;
+    var alpha = upload.getAttribute('data-alpha') === '1';
     var busy = false;
     upload.addEventListener('submit', function (e) {
       var file = input.files && input.files[0];
@@ -43,31 +45,35 @@
       var url = URL.createObjectURL(file);
       var img = new Image();
       img.onload = function () {
-        var max = 1200;
-        var scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+        var max = alpha ? 1400 : 1200;
+        var scale = Math.min(1, max / (alpha ? img.naturalHeight : Math.max(img.naturalWidth, img.naturalHeight)));
         var canvas = document.createElement('canvas');
         canvas.width = Math.round(img.naturalWidth * scale);
         canvas.height = Math.round(img.naturalHeight * scale);
         var ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#0a1120';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        if (!alpha) {
+          ctx.fillStyle = '#140608';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         URL.revokeObjectURL(url);
         canvas.toBlob(function (blob) {
           try {
             if (blob && blob.size < file.size) {
+              var type = blob.type || (alpha ? 'image/png' : 'image/jpeg');
+              var ext = type === 'image/webp' ? 'webp' : (type === 'image/png' ? 'png' : 'jpg');
               var dt = new DataTransfer();
-              dt.items.add(new File([blob], 'avatar.jpg', { type: 'image/jpeg' }));
+              dt.items.add(new File([blob], 'photo.' + ext, { type: type }));
               input.files = dt.files;
             }
           } catch (err) { /* نرفع الأصلية */ }
           send();
-        }, 'image/jpeg', 0.9);
+        }, alpha ? 'image/webp' : 'image/jpeg', 0.9);
       };
       img.onerror = function () { URL.revokeObjectURL(url); send(); };
       img.src = url;
     });
-  }
+  });
 
   // إخفاء رسالة النجاح بعد قليل
   var ok = document.querySelector('.alert--ok[role="status"]');

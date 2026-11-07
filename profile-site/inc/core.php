@@ -154,9 +154,92 @@ function content(): array
 {
     static $c = null;
     if ($c === null) {
-        $c = merge_content(default_content(), store_read('content'));
+        $c = normalize_lists(merge_content(default_content(), store_read('content')));
     }
     return $c;
+}
+
+// كل عنصر في القوائم يأخذ كل حقول القالب (نصوص فقط)، فلا ينقص حقل ولا يظهر تحذير
+function normalize_lists(array $c): array
+{
+    foreach (list_templates() as $sec => $tpl) {
+        $items = isset($c[$sec]['items']) && is_array($c[$sec]['items']) ? $c[$sec]['items'] : [];
+        $list = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $row = [];
+            foreach ($tpl as $k => $def) {
+                $v = $item[$k] ?? $def;
+                $row[$k] = is_scalar($v) ? (string) $v : $def;
+            }
+            $list[] = $row;
+        }
+        $c[$sec]['items'] = $list;
+    }
+    return $c;
+}
+
+/* ───────────── اللغة ───────────── */
+
+// العربية هي الأساس، والإنجليزية عبر ?lang=en
+function lang(): string
+{
+    static $l = null;
+    if ($l === null) {
+        $l = req_str($_GET, 'lang') === 'en' ? 'en' : 'ar';
+    }
+    return $l;
+}
+
+function is_en(): bool
+{
+    return lang() === 'en';
+}
+
+// قيمة الحقل باللغة الحالية: النسخة الإنجليزية (key_en) لو موجودة وغير فارغة، وإلا العربية
+function tx(array $a, string $key): string
+{
+    if (is_en()) {
+        $en = $a[$key . '_en'] ?? '';
+        if (is_string($en) && trim($en) !== '') {
+            return $en;
+        }
+    }
+    $v = $a[$key] ?? '';
+    return is_string($v) ? $v : '';
+}
+
+// نص آمن مع تلوين ما بين *نجمتين* بالأحمر
+function accent(string $s): string
+{
+    return preg_replace('/\*([^*\n]+)\*/u', '<em>$1</em>', e($s)) ?? e($s);
+}
+
+// النص بدون نجوم التلوين (للعناوين في جوجل وما شابه)
+function plain(string $s): string
+{
+    return trim(str_replace('*', '', $s));
+}
+
+// فقرات مفصولة بسطر فارغ
+function paragraphs(string $s): array
+{
+    $out = [];
+    foreach (preg_split('/\R\s*\R/u', trim($s)) ?: [] as $p) {
+        $p = trim($p);
+        if ($p !== '') {
+            $out[] = $p;
+        }
+    }
+    return $out;
+}
+
+// رابط الصفحة بلغة معيّنة
+function page_url(string $lang): string
+{
+    return base_url() . ($lang === 'en' ? '?lang=en' : '');
 }
 
 /* ───────────── أدوات عامة ───────────── */
@@ -250,13 +333,24 @@ function base_url(): string
     return (is_https() ? 'https' : 'http') . '://' . $host . $dir;
 }
 
+// صورة الموقع (جوجل والمشاركة واللوحة)
 function avatar_path(): string
 {
     $a = content()['avatar'];
     if ($a !== '' && preg_match('#^uploads/[a-z0-9_-]+\.(jpe?g|png|webp)$#', $a) && is_file(APP_ROOT . '/' . $a)) {
         return $a;
     }
-    return 'assets/avatar.svg';
+    return 'assets/img/site-photo.jpg';
+}
+
+// صورة الواجهة المقصوصة بخلفية شفافة
+function hero_photo_path(): string
+{
+    $a = content()['hero_photo'];
+    if ($a !== '' && preg_match('#^uploads/hero-[a-z0-9]+\.(png|webp)$#', $a) && is_file(APP_ROOT . '/' . $a)) {
+        return $a;
+    }
+    return '';
 }
 
 // رقم إصدار للملفات الثابتة حتى يحمّل المتصفح النسخة الجديدة بعد أي تعديل
@@ -487,7 +581,11 @@ function project_key(array $p): string
 // مفاتيح النقرات المسموح تسجيلها (أي مفتاح آخر يُرفض)
 function click_keys(): array
 {
-    $keys = ['whatsapp' => 'واتساب', 'facebook' => 'فيسبوك', 'tiktok' => 'تيك توك'];
+    $keys = [
+        'whatsapp' => 'واتساب', 'facebook' => 'فيسبوك', 'tiktok' => 'تيك توك', 'instagram' => 'إنستغرام',
+        'github' => 'GitHub', 'linkedin' => 'لينكدإن', 'email' => 'البريد الإلكتروني', 'phone' => 'اتصال هاتفي',
+        'form' => 'نموذج التواصل', 'lang' => 'زر اللغة', 'chat' => 'زر المحادثة',
+    ];
     foreach (content()['projects']['items'] as $p) {
         $keys[project_key($p)] = (string) ($p['name'] ?? '');
     }
@@ -504,4 +602,49 @@ function track_click(string $key): void
         $s['clicks'][$key] = (int) ($s['clicks'][$key] ?? 0) + 1;
         return $s;
     });
+}
+
+/* ───────────── رسائل نموذج التواصل ───────────── */
+
+function messages(): array
+{
+    $m = store_read('messages');
+    $list = isset($m['list']) && is_array($m['list']) ? $m['list'] : [];
+    return array_values(array_filter($list, 'is_array'));
+}
+
+/**
+ * حفظ رسالة جديدة. ترجع '' عند النجاح أو سبب الرفض.
+ * حماية من الإغراق: 5 رسائل في الساعة لكل جهاز، و60 رسالة في اليوم من الجميع، وآخر 300 رسالة فقط.
+ */
+function message_add(array $fields): string
+{
+    $ipKey = substr(hash('sha256', 'msg|' . client_ip()), 0, 16);
+    $now   = time();
+    $err   = '';
+    $ok = store_update('messages', function (array $m) use ($fields, $ipKey, $now, &$err) {
+        $list = isset($m['list']) && is_array($m['list']) ? array_values(array_filter($m['list'], 'is_array')) : [];
+        $mine = 0;
+        $day  = 0;
+        foreach ($list as $row) {
+            $t = (int) ($row['t'] ?? 0);
+            if ($t > $now - 86400) {
+                $day++;
+                if (($row['k'] ?? '') === $ipKey && $t > $now - 3600) {
+                    $mine++;
+                }
+            }
+        }
+        if ($mine >= 5 || $day >= 60) {
+            $err = 'limit';
+            return null;
+        }
+        array_unshift($list, $fields + ['id' => bin2hex(random_bytes(6)), 't' => $now, 'k' => $ipKey, 'new' => 1]);
+        $m['list'] = array_slice($list, 0, 300);
+        return $m;
+    });
+    if ($err !== '') {
+        return $err;
+    }
+    return $ok ? '' : 'save';
 }
