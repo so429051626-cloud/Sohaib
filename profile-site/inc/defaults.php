@@ -1,8 +1,8 @@
 <?php
 // المحتوى الافتراضي للصفحة. كل نص هنا قابل للتعديل من لوحة التحكم (admin.php)،
 // والتعديلات تُحفظ في data/content.json.php ولا تمسّ هذا الملف.
-// الحقول التي تنتهي بـ _en هي النسخة الإنجليزية (تظهر عند الضغط على زر EN)،
-// ولو تُركت فارغة تظهر النسخة العربية مكانها.
+// الحقول التي تنتهي بـ _en هي النسخة الإنجليزية (الافتراضية للموقع)، والأخرى عربية (زر AR)،
+// ولو تُركت الإنجليزية فارغة تظهر النسخة العربية مكانها.
 // النص بين نجمتين *هكذا* يظهر باللون الأحمر المميّز.
 
 function default_content(): array
@@ -57,8 +57,8 @@ function default_content(): array
             'btn_secondary_en' => 'View my work',
             'ribbon'        => "أنظمة الكاشير\nالمتاجر الإلكترونية\nتطبيقات الجوال\nالذكاء الاصطناعي\nأنظمة SaaS",
             'ribbon_en'     => "POS Systems\nOnline Stores\nMobile Apps\nAI Platforms\nSaaS",
-            'loader_word'   => 'SOHAIB',
-            'loader_tag'    => 'SYSTEMS DEVELOPER',
+            'loader_word'   => 'SOHAIB SHAWQI',
+            'loader_tag'    => 'SYSTEMS DEVELOPER · FOUNDER OF MADIX',
         ],
         'about' => [
             'kicker'        => 'من أنا',
@@ -204,6 +204,8 @@ function default_content(): array
         'avatar'     => '',
         // صورة الواجهة المقصوصة بخلفية شفافة (تُرفع من اللوحة)
         'hero_photo' => '',
+        // صورة قسم النبذة داخل الدائرة المتحركة (تُرفع من اللوحة)
+        'about_photo' => '',
     ];
 }
 

@@ -1,6 +1,6 @@
 <?php
 // الصفحة التعريفية العامة. كل النصوص تُطبع من الخادم مباشرة (وليس عبر JavaScript)
-// حتى يقرأها جوجل ويؤرشفها كاملة. العربية هي الأساس، والإنجليزية عبر ?lang=en
+// حتى يقرأها جوجل ويؤرشفها كاملة. الإنجليزية هي الأساس، والعربية عبر ?lang=ar (زر AR)
 
 declare(strict_types=1);
 require __DIR__ . '/inc/core.php';
@@ -57,6 +57,8 @@ foreach ([
         $socials[$k] = $u;
     }
 }
+
+$aboutCustom = about_photo_path();
 
 // صورة الواجهة: المرفوعة من اللوحة، أو الصورة الافتراضية المقصوصة
 $heroCustom = hero_photo_path();
@@ -169,20 +171,24 @@ foreach ($stats as $s) {
 }
 $uniq = function (string $s): string { return implode('', array_unique(preg_split('//u', $s, -1, PREG_SPLIT_NO_EMPTY) ?: [])); };
 $frChars = $uniq($frChars);
-$fontLinks = ['https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&display=swap&text=' . rawurlencode($frChars)];
+$fontLinks = [];
 if ($en) {
-    $fontLinks[] = 'https://fonts.googleapis.com/css2?family=Lalezar&family=Markazi+Text:wght@400;500;600;700&display=swap';
+    // الإنجليزية: Fraunces للعناوين والاسم (مع المائل للكلمات المميّزة) و Plus Jakarta Sans للنصوص
+    $fontLinks[] = 'https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500..900;1,9..144,500..900&family=Plus+Jakarta+Sans:wght@400..800&display=swap';
 } else {
-    // العربية: Noto Naskh Arabic لكل الصفحة، و Lalezar فقط لأحرف الكلمات الكبيرة على بطاقات الخدمات
-    $fontLinks[] = 'https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400..700&display=swap';
-    $covers = '';
-    foreach ($services as $s) {
-        $covers .= $s['cover'];
-    }
-    if (trim($covers) !== '') {
-        $fontLinks[] = 'https://fonts.googleapis.com/css2?family=Lalezar&display=swap&text=' . rawurlencode($uniq($covers));
-    }
+    // العربية: Cairo لكل الصفحة، و Fraunces فقط لأحرف الاسم الكبير والأرقام (ملف صغير جداً)
+    $fontLinks[] = 'https://fonts.googleapis.com/css2?family=Cairo:wght@400..900&display=swap';
+    $fontLinks[] = 'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&display=swap&text=' . rawurlencode($frChars);
 }
+// Lalezar فقط لأحرف الكلمات الكبيرة على بطاقات الخدمات
+$covers = '';
+foreach ($services as $s) {
+    $covers .= $s['cover'];
+}
+if (trim($covers) !== '') {
+    $fontLinks[] = 'https://fonts.googleapis.com/css2?family=Lalezar&display=swap&text=' . rawurlencode($uniq($covers));
+}
+$langHref = $otherLang === 'ar' ? './?lang=ar' : './';
 
 $navItems = [['home', '#home', tx($nav, 'home')], ['about', '#about', tx($nav, 'about')], ['services', '#services', tx($nav, 'services')]];
 if ($sectors) {
@@ -204,7 +210,7 @@ $appData = [
     ],
 ];
 ?><!doctype html>
-<html lang="<?= $L ?>" dir="<?= $en ? 'ltr' : 'rtl' ?>" class="no-js">
+<html lang="<?= $L ?>" dir="<?= $en ? 'ltr' : 'rtl' ?>" class="no-js notranslate" translate="no">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -213,16 +219,17 @@ $appData = [
 <meta name="keywords" content="<?= e($seo['keywords']) ?>">
 <meta name="author" content="<?= e($name) ?>">
 <meta name="robots" content="index, follow, max-image-preview:large">
+<!-- منع الترجمة التلقائية من المتصفح: الترجمة فقط من زر اللغة في الصفحة -->
+<meta name="google" content="notranslate">
 <?php if (trim($seo['google_verification']) !== ''): ?>
 <meta name="google-site-verification" content="<?= e(trim($seo['google_verification'])) ?>">
 <?php endif; ?>
 <link rel="canonical" href="<?= e($canonical) ?>">
 <link rel="alternate" hreflang="ar" href="<?= e(page_url('ar')) ?>">
 <link rel="alternate" hreflang="en" href="<?= e(page_url('en')) ?>">
-<link rel="alternate" hreflang="x-default" href="<?= e(page_url('ar')) ?>">
-<meta name="theme-color" content="#f6f0eb" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#120809" media="(prefers-color-scheme: dark)">
-<meta name="color-scheme" content="light dark">
+<link rel="alternate" hreflang="x-default" href="<?= e(page_url('en')) ?>">
+<meta name="theme-color" content="#f6f0eb">
+<meta name="color-scheme" content="light">
 
 <meta property="og:type" content="profile">
 <meta property="og:site_name" content="<?= e($name) ?>">
@@ -262,25 +269,28 @@ $appData = [
 <script>
 (function(d){var h=d.documentElement,t=null;h.className=h.className.replace('no-js','js');
 try{t=localStorage.getItem('sq-theme')}catch(e){}
-if(t!=='dark'&&t!=='light')t=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+if(t!=='dark')t='light';
 h.setAttribute('data-theme',t);
 var r=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches,s=null;
 try{s=sessionStorage.getItem('sq-loaded')}catch(e){}
 if(!r)h.classList.add(s?'is-quick':'is-loading');
-setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-quick');h.classList.add('is-ready','no-reveal')}},4500);
+setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-quick');h.classList.add('is-ready','no-reveal')}},5000);
 })(document);
 </script>
 </head>
 <body>
 
-<!-- شاشة التحميل: الشعار يُرسم ثم يمتلئ، ثم الاسم -->
+<!-- الشاشة الافتتاحية: تظهر أول ما يفتح الموقع، ثم تنسحب للأعلى بعد 3 ثوانٍ -->
 <div class="loader" aria-hidden="true">
   <div class="loader__glow"></div>
+  <p class="loader__corner loader__corner--a" dir="ltr">PORTFOLIO</p>
+  <p class="loader__corner loader__corner--b" dir="ltr">© <?= e($year) ?></p>
   <div class="loader__in">
     <?= logo_mark('mark loader__mark') ?>
-    <p class="loader__word" dir="ltr"><?php foreach (preg_split('//u', $hero['loader_word'], -1, PREG_SPLIT_NO_EMPTY) ?: [] as $i => $ch): ?><span style="--i:<?= $i ?>"><?= e($ch) ?></span><?php endforeach; ?></p>
+    <p class="loader__word" dir="ltr"><?php foreach (preg_split('//u', $hero['loader_word'], -1, PREG_SPLIT_NO_EMPTY) ?: [] as $i => $ch): ?><span style="--i:<?= $i ?>"><?= $ch === ' ' ? '&nbsp;' : e($ch) ?></span><?php endforeach; ?></p>
     <p class="loader__tag" dir="ltr"><i></i><span><?= e($hero['loader_tag']) ?></span><i></i></p>
   </div>
+  <div class="loader__foot" dir="ltr"><span class="loader__bar"><i></i></span><b class="loader__count">0</b><small>%</small></div>
 </div>
 
 <a class="skip" href="#main"><?= e(ui('skip')) ?></a>
@@ -299,7 +309,7 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
   </nav>
   <div class="nav__tools">
     <button class="nav__theme" type="button" aria-label="<?= e(ui('theme')) ?>" title="<?= e(ui('theme')) ?>"><?= icon('sun', 'i i-sun') ?><?= icon('moon', 'i i-moon') ?></button>
-    <a class="nav__lang" href="<?= e($otherLang === 'en' ? './?lang=en' : './') ?>" hreflang="<?= $otherLang ?>" lang="<?= $otherLang ?>" aria-label="<?= e(ui('lang_name')) ?>" data-track="lang"><span><?= e(ui('lang_code')) ?></span><?= flag_svg($otherLang) ?></a>
+    <a class="nav__lang" href="<?= e($langHref) ?>" hreflang="<?= $otherLang ?>" lang="<?= $otherLang ?>" aria-label="<?= e(ui('lang_name')) ?>" data-track="lang"><span><?= e(ui('lang_code')) ?></span><?= flag_svg($otherLang) ?></a>
     <?php if ($waUrl): ?>
     <a class="nav__cta" href="<?= e($waUrl) ?>" target="_blank" rel="noopener" data-track="whatsapp"><?= icon('whatsapp') ?><span><?= e(tx($nav, 'cta')) ?></span></a>
     <?php endif; ?>
@@ -366,7 +376,18 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
         <figure class="about__photo reveal">
           <div class="blob">
             <span class="blob__glow" aria-hidden="true"></span>
-            <div class="blob__pic"><img src="<?= e(asset(avatar_path())) ?>" width="900" height="900" alt="<?= e(ui('photo_alt') . ' – ' . tx($hero, 'badge')) ?>" loading="lazy" decoding="async"></div>
+            <span class="blob__ring" aria-hidden="true"></span>
+            <span class="blob__ring blob__ring--2" aria-hidden="true"></span>
+            <div class="blob__pic">
+              <?php if ($aboutCustom !== ''): ?>
+              <img src="<?= e(asset($aboutCustom)) ?>" width="900" height="900" alt="<?= e(ui('photo_alt') . ' – ' . tx($hero, 'badge')) ?>" loading="lazy" decoding="async">
+              <?php else: ?>
+              <picture><source type="image/webp" srcset="<?= e(asset('assets/img/about.webp')) ?>"><img src="<?= e(asset('assets/img/about.jpg')) ?>" width="900" height="900" alt="<?= e(ui('photo_alt') . ' – ' . tx($hero, 'badge')) ?>" loading="lazy" decoding="async"></picture>
+              <?php endif; ?>
+              <span class="blob__shine" aria-hidden="true"></span>
+            </div>
+            <span class="blob__chip blob__chip--a" aria-hidden="true"><?= icon('code-xml') ?></span>
+            <span class="blob__chip blob__chip--b" aria-hidden="true"><?= icon('crown') ?><b>MADIX</b></span>
           </div>
         </figure>
         <article class="about__card card reveal">
@@ -600,7 +621,7 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
       </header>
 
       <div class="contact">
-        <form class="form card reveal" method="post" action="contact.php<?= $en ? '?lang=en' : '' ?>" novalidate>
+        <form class="form card reveal" method="post" action="contact.php<?= $en ? '' : '?lang=ar' ?>" novalidate>
           <input type="hidden" name="lang" value="<?= $L ?>">
           <div class="form__hp" aria-hidden="true"><label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
           <div class="form__row">
@@ -680,7 +701,7 @@ setTimeout(function(){if(!window.__appOk){h.classList.remove('is-loading','is-qu
       </div>
       <nav class="foot__links" aria-label="<?= e(ui('browse')) ?>">
         <h3><?= e(ui('browse')) ?></h3>
-        <ul><?php foreach ($navItems as [$key, $href, $label]): if ($key === 'home') continue; ?><li><a href="<?= e($href) ?>"><?= e($label) ?></a></li><?php endforeach; ?><li><a href="<?= e($otherLang === 'en' ? './?lang=en' : './') ?>" hreflang="<?= $otherLang ?>"><?= e(ui('lang_name')) ?></a></li></ul>
+        <ul><?php foreach ($navItems as [$key, $href, $label]): if ($key === 'home') continue; ?><li><a href="<?= e($href) ?>"><?= e($label) ?></a></li><?php endforeach; ?><li><a href="<?= e($langHref) ?>" hreflang="<?= $otherLang ?>"><?= e(ui('lang_name')) ?></a></li></ul>
       </nav>
       <div class="foot__contact">
         <h3><?= e(ui('get_in_touch')) ?></h3>

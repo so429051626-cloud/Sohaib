@@ -24,8 +24,8 @@ function reply(bool $ajax, string $status, string $redirect): void
     exit;
 }
 
-$lang = req_str($_POST, 'lang') === 'en' ? 'en' : 'ar';
-$back = base_url() . ($lang === 'en' ? '?lang=en&' : '?') . 'sent=1#contact';
+$lang = req_str($_POST, 'lang') === 'ar' ? 'ar' : 'en';
+$back = base_url() . ($lang === 'ar' ? '?lang=ar&' : '?') . 'sent=1#contact';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     header('Location: ' . base_url(), true, 303);
@@ -66,7 +66,7 @@ if ($msg['email'] !== '' && !filter_var($msg['email'], FILTER_VALIDATE_EMAIL)) {
     $msg['email'] = '';
 }
 if ($msg['name'] === '' || $msg['details'] === '') {
-    reply($ajax, 'bad', base_url() . ($lang === 'en' ? '?lang=en' : '') . '#contact');
+    reply($ajax, 'bad', base_url() . ($lang === 'ar' ? '?lang=ar' : '') . '#contact');
 }
 
 $err = message_add($msg);

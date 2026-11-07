@@ -40,8 +40,8 @@ function content_schema(): array
             'btn_secondary' => ['نص الزر الثاني', 'text', 0, TR],
             'ribbon'        => ['كلمات الشريط المتحرك (كل كلمة في سطر)', 'textarea', 0, TR],
             'headline'      => ['المسمّى الوظيفي (لجوجل)', 'text', 0, TR],
-            'loader_word'   => ['الكلمة في شاشة التحميل', 'text'],
-            'loader_tag'    => ['السطر الصغير في شاشة التحميل', 'text'],
+            'loader_word'   => ['الاسم في الشاشة الافتتاحية', 'text'],
+            'loader_tag'    => ['السطر الصغير في الشاشة الافتتاحية', 'text'],
         ]],
         'about' => ['title' => 'نبذة عني', 'fields' => [
             'kicker'      => ['العنوان الصغير', 'text', 0, TR],
@@ -258,9 +258,10 @@ function upload_error_text(int $code): string
     }
 }
 
-function handle_avatar_upload(): string
+// صورة مربعة (صورة الموقع أو صورة النبذة): تُقصّ مربعاً حتى 900×900
+function handle_square_upload(string $input = 'avatar', string $prefix = 'avatar', string $key = 'avatar'): string
 {
-    $f = $_FILES['avatar'] ?? null;
+    $f = $_FILES[$input] ?? null;
     if (!is_array($f) || is_array($f['error'] ?? null)) {
         return 'لم تختر صورة.';
     }
@@ -291,7 +292,7 @@ function handle_avatar_upload(): string
         @file_put_contents(UPLOAD_DIR . '/.htaccess', "<IfModule mod_rewrite.c>\n  RewriteEngine On\n  RewriteRule \\.(?i:php[0-9]?|phtml|phar|pl|py|cgi|sh|asp|aspx|jsp)$ - [F,L]\n</IfModule>\n");
     }
 
-    $name = 'avatar-' . bin2hex(random_bytes(6));
+    $name = $prefix . '-' . bin2hex(random_bytes(6));
     $rel = '';
 
     // إن توفّرت مكتبة GD: نقصّ الصورة مربّعاً (حتى 900×900) ونعيد حفظها (يحذف أي بيانات مخفية فيها)
@@ -344,7 +345,7 @@ function handle_avatar_upload(): string
         $rel = 'uploads/' . $name . '.' . $ext;
     }
 
-    if (!set_avatar($rel)) {
+    if (!set_photo_key($key, $rel, $prefix)) {
         @unlink(APP_ROOT . '/' . $rel);
         return 'تعذّر الحفظ: تأكد أن مجلد data قابل للكتابة وأن مساحة الاستضافة غير ممتلئة.';
     }
@@ -427,6 +428,20 @@ function set_hero_photo(string $rel): bool
         return $c;
     });
     if ($ok && $old !== '' && $old !== $rel && preg_match('#^uploads/hero-[a-f0-9]+\.(png|webp)$#', $old)) {
+        @unlink(APP_ROOT . '/' . $old);
+    }
+    return $ok;
+}
+
+function set_photo_key(string $key, string $rel, string $prefix): bool
+{
+    $old = content()[$key];
+    $ok = store_update('content', function (array $c) use ($key, $rel) {
+        $c = merge_content(default_content(), $c);
+        $c[$key] = $rel;
+        return $c;
+    });
+    if ($ok && $old !== '' && $old !== $rel && preg_match('#^uploads/' . preg_quote($prefix, '#') . '-[a-f0-9]+\.(jpg|png|webp)$#', $old)) {
         @unlink(APP_ROOT . '/' . $old);
     }
     return $ok;
@@ -540,13 +555,26 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $tab = 'content';
                 break;
             case 'upload_avatar':
-                $err = handle_avatar_upload();
+                $err = handle_square_upload('avatar', 'avatar', 'avatar');
                 flash($err === '' ? 'تم تحديث الصورة.' : $err, $err === '' ? 'ok' : 'err');
                 $tab = 'photo';
                 break;
             case 'reset_avatar':
                 if (set_avatar('')) {
                     flash('تمت إعادة صورة الموقع الأصلية.');
+                } else {
+                    flash(SAVE_FAILED, 'err');
+                }
+                $tab = 'photo';
+                break;
+            case 'upload_about':
+                $err = handle_square_upload('about', 'about', 'about_photo');
+                flash($err === '' ? 'تم تحديث صورة النبذة.' : $err, $err === '' ? 'ok' : 'err');
+                $tab = 'photo';
+                break;
+            case 'reset_about':
+                if (set_photo_key('about_photo', '', 'about')) {
+                    flash('تمت إعادة صورة النبذة الأصلية.');
                 } else {
                     flash(SAVE_FAILED, 'err');
                 }
@@ -932,7 +960,7 @@ $c = content();
   <?php elseif ($tab === 'content'): ?>
   <form method="post" action="<?= e($self) ?>" class="editor">
     <?= csrf_field() ?><input type="hidden" name="action" value="save_content">
-    <p class="note"><?= icon('pencil') ?>عدّل أي نص ثم اضغط "حفظ". التعديل يظهر على الصفحة فوراً. اترك عنصر القائمة فارغاً لحذفه. خانة English هي النسخة الإنجليزية (زر EN في الصفحة)، ولو تركتها فارغة يظهر النص العربي.</p>
+    <p class="note"><?= icon('pencil') ?>عدّل أي نص ثم اضغط "حفظ". التعديل يظهر على الصفحة فوراً. اترك عنصر القائمة فارغاً لحذفه. خانة English هي النسخة الإنجليزية (اللغة الافتراضية للموقع)، والخانة الأولى عربية (زر AR)، ولو تركت English فارغة يظهر النص العربي.</p>
     <?php $first = true; foreach (content_schema() as $sec => $def): ?>
       <details class="panel group"<?= $first ? ' open' : '' ?>>
         <summary><h2><?= e($def['title']) ?></h2><?= icon('arrow-up-left', 'i chev') ?></summary>
@@ -982,10 +1010,29 @@ $c = content();
     </div>
   </section>
   <section class="panel photo">
+    <?php $aboutP = about_photo_path(); ?>
+    <img src="<?= e(asset($aboutP !== '' ? $aboutP : 'assets/img/about.jpg')) ?>" alt="صورة النبذة الحالية" width="160" height="160">
+    <div>
+      <h2>صورة النبذة (داخل الدائرة المتحركة)</h2>
+      <p class="muted">تظهر في قسم "نبذة عني" داخل دائرة تتلوّى مع لمعة كل 3 ثوانٍ. الأفضل صورة مربعة يكون فيها وجهك في المنتصف (JPG أو PNG أو WEBP).</p>
+      <form method="post" action="<?= e($self) ?>" enctype="multipart/form-data" class="upload" data-limit="<?= (int) upload_limit() ?>">
+        <?= csrf_field() ?><input type="hidden" name="action" value="upload_about">
+        <input type="file" name="about" accept="image/jpeg,image/png,image/webp" required>
+        <button class="btn btn--primary" type="submit"><?= icon('upload') ?>رفع صورة النبذة</button>
+      </form>
+      <?php if ($c['about_photo'] !== ''): ?>
+      <form method="post" action="<?= e($self) ?>">
+        <?= csrf_field() ?><input type="hidden" name="action" value="reset_about">
+        <button class="btn btn--ghost" type="submit"><?= icon('rotate-ccw') ?>إرجاع صورة النبذة الأصلية</button>
+      </form>
+      <?php endif; ?>
+    </div>
+  </section>
+  <section class="panel photo">
     <img src="<?= e(asset(avatar_path())) ?>" alt="صورة الموقع الحالية" width="160" height="160">
     <div>
       <h2>صورة الموقع</h2>
-      <p class="muted">تظهر في قسم "نبذة" داخل الشكل الدائري، وفي نتائج جوجل ولوحة التحكم. الأفضل صورة مربعة واضحة للوجه (JPG أو PNG أو WEBP). الصور الكبيرة تُصغَّر تلقائياً قبل الرفع.</p>
+      <p class="muted">تظهر في نتائج جوجل ولوحة التحكم. الأفضل صورة مربعة واضحة للوجه (JPG أو PNG أو WEBP). الصور الكبيرة تُصغَّر تلقائياً قبل الرفع.</p>
       <form method="post" action="<?= e($self) ?>" enctype="multipart/form-data" class="upload" data-limit="<?= (int) upload_limit() ?>">
         <?= csrf_field() ?><input type="hidden" name="action" value="upload_avatar">
         <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp" required>

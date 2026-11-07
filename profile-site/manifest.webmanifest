@@ -1,8 +1,8 @@
 {
-  "name": "صهيب شوقي | Sohaib Shawqi",
-  "short_name": "صهيب شوقي",
-  "lang": "ar",
-  "dir": "rtl",
+  "name": "Sohaib Shawqi | صهيب شوقي",
+  "short_name": "Sohaib Shawqi",
+  "lang": "en",
+  "dir": "ltr",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#f6f0eb",

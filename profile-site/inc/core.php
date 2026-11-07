@@ -183,12 +183,12 @@ function normalize_lists(array $c): array
 
 /* ───────────── اللغة ───────────── */
 
-// العربية هي الأساس، والإنجليزية عبر ?lang=en
+// الإنجليزية هي اللغة الافتراضية، والعربية عبر ?lang=ar (زر AR في الصفحة)
 function lang(): string
 {
     static $l = null;
     if ($l === null) {
-        $l = req_str($_GET, 'lang') === 'en' ? 'en' : 'ar';
+        $l = req_str($_GET, 'lang') === 'ar' ? 'ar' : 'en';
     }
     return $l;
 }
@@ -239,7 +239,7 @@ function paragraphs(string $s): array
 // رابط الصفحة بلغة معيّنة
 function page_url(string $lang): string
 {
-    return base_url() . ($lang === 'en' ? '?lang=en' : '');
+    return base_url() . ($lang === 'ar' ? '?lang=ar' : '');
 }
 
 /* ───────────── أدوات عامة ───────────── */
@@ -341,6 +341,16 @@ function avatar_path(): string
         return $a;
     }
     return 'assets/img/site-photo.jpg';
+}
+
+// صورة قسم النبذة داخل الدائرة المتحركة
+function about_photo_path(): string
+{
+    $a = content()['about_photo'];
+    if ($a !== '' && preg_match('#^uploads/about-[a-f0-9]+\.(jpe?g|png|webp)$#', $a) && is_file(APP_ROOT . '/' . $a)) {
+        return $a;
+    }
+    return '';
 }
 
 // صورة الواجهة المقصوصة بخلفية شفافة

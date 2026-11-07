@@ -30,29 +30,41 @@
   }, { passive: true });
   window.addEventListener('resize', function () { requestAnimationFrame(runScroll); });
 
-  /* ───────── شاشة التحميل ثم حركة دخول الواجهة ───────── */
+  /* ───────── الشاشة الافتتاحية (3 ثوانٍ) ثم انسحابها للأعلى وحركة دخول الواجهة ───────── */
   safe(function () {
-    var start = window.performance && performance.now ? performance.now() : 0;
+    var now = function () { return window.performance && performance.now ? performance.now() : 0; };
+    var start = now();
+    var SHOW = 3000;   // مدة ظهور الشاشة الافتتاحية
+    var SLIDE = 1100;  // مدة انسحابها للأعلى
     var ready = function () {
       root.classList.add('is-ready');
       root.classList.remove('is-quick');
       try { sessionStorage.setItem('sq-loaded', '1'); } catch (e) { /* خاص */ }
       if (root.classList.contains('is-loading')) {
-        setTimeout(function () { root.classList.remove('is-loading'); }, 800);
+        setTimeout(function () { root.classList.remove('is-loading'); }, SLIDE);
       }
     };
-    if (root.classList.contains('is-loading')) {
-      // الشعار يحتاج ~2.2 ثانية ليكتمل رسمه؛ ولا ننتظر أكثر من 3.6 ثانية مهما كان الاتصال بطيئاً
-      var minWait = Math.max(0, 2250 - start);
-      var done = false;
-      var finish = function () { if (!done) { done = true; ready(); } };
-      var loaded = doc.readyState === 'complete';
-      var go = function () { setTimeout(finish, loaded ? minWait : Math.max(0, 2250 - performance.now())); };
-      if (loaded) go(); else window.addEventListener('load', go, { once: true });
-      setTimeout(finish, Math.max(minWait, 3600 - start));
-    } else {
+    if (!root.classList.contains('is-loading')) {
       requestAnimationFrame(function () { setTimeout(ready, 40); });
+      return;
     }
+    // العدّاد 0 → 100%
+    var count = $('.loader__count');
+    if (count) {
+      var tick = function () {
+        var k = Math.min(1, (now() - start) / (SHOW - 200));
+        var eased = 1 - Math.pow(1 - k, 2.2);
+        count.textContent = String(Math.round(eased * 100));
+        if (k < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+    var done = false;
+    var finish = function () { if (!done) { done = true; ready(); } };
+    var wait = function () { setTimeout(finish, Math.max(0, SHOW - now())); };
+    if (doc.readyState === 'complete') wait(); else window.addEventListener('load', wait, { once: true });
+    // لا ننتظر أكثر من 4.2 ثانية مهما كان الاتصال بطيئاً
+    setTimeout(finish, Math.max(SHOW, 4200 - start));
   });
 
   /* ───────── الشريط العلوي: القائمة، المؤشر الأحمر، القسم الحالي ───────── */
@@ -123,24 +135,13 @@
   safe(function () {
     var btn = $('.nav__theme');
     if (!btn) return;
-    var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
-    var isDark = function () {
-      var t = root.getAttribute('data-theme');
-      return t ? t === 'dark' : !!(mq && mq.matches);
-    };
+    // الوضع الفاتح هو الافتراضي دائماً، والليلي فقط عند اختيار الزائر له
+    var isDark = function () { return root.getAttribute('data-theme') === 'dark'; };
     var paintMeta = function () {
       var color = isDark() ? '#120809' : '#f6f0eb';
       $$('meta[name="theme-color"]').forEach(function (m) { m.setAttribute('content', color); });
     };
     paintMeta();
-    // لو لم يختر الزائر وضعاً بنفسه، نتبع إعداد جهازه حتى لو غيّره والصفحة مفتوحة
-    if (mq && mq.addEventListener) {
-      mq.addEventListener('change', function (ev) {
-        var saved = null;
-        try { saved = localStorage.getItem('sq-theme'); } catch (e) { /* خاص */ }
-        if (!saved) { root.setAttribute('data-theme', ev.matches ? 'dark' : 'light'); paintMeta(); }
-      });
-    }
     var apply = function (mode) {
       root.setAttribute('data-theme', mode);
       try { localStorage.setItem('sq-theme', mode); } catch (e) { /* خاص */ }

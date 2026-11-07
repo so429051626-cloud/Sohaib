@@ -49,8 +49,8 @@
         "btn_secondary_en": "View my work",
         "ribbon": "أنظمة الكاشير\nالمتاجر الإلكترونية\nتطبيقات الجوال\nالذكاء الاصطناعي\nأنظمة SaaS",
         "ribbon_en": "POS Systems\nOnline Stores\nMobile Apps\nAI Platforms\nSaaS",
-        "loader_word": "SOHAIB",
-        "loader_tag": "SYSTEMS DEVELOPER"
+        "loader_word": "SOHAIB SHAWQI",
+        "loader_tag": "SYSTEMS DEVELOPER · FOUNDER OF MADIX"
     },
     "about": {
         "kicker": "من أنا",
@@ -343,5 +343,6 @@
         "en_line": "Sohaib Shawqi · Founder & Developer of MADIX Systems · POS, E-commerce, SaaS & AI Platforms"
     },
     "avatar": "",
-    "hero_photo": ""
+    "hero_photo": "",
+    "about_photo": ""
 }
