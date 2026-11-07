@@ -1,0 +1,10 @@
+# بيانات تشغيل خاصة بالخادم: لا تُرفع إلى المستودع أبداً
+data/auth.json.php
+data/stats.json.php
+data/messages.json.php
+data/setup-code.php
+data/sessions/
+data/*.lock
+data/*.tmp.php
+uploads/avatar-*
+uploads/hero-*

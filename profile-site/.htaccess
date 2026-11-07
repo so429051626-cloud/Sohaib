@@ -1,0 +1,28 @@
+# صفحة صهيب قديح: إعدادات Apache. كل سطر داخل IfModule حتى لا يسبب خطأ 500 على أي استضافة.
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # robots.txt و sitemap.xml يُولَّدان تلقائياً
+  RewriteRule ^robots\.txt$ robots.php [L]
+  RewriteRule ^sitemap\.xml$ sitemap.php [L]
+  # منع الوصول المباشر لملفات النظام والبيانات
+  RewriteRule ^(inc|data)(/|$) - [F,L]
+</IfModule>
+
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+  AddType image/svg+xml .svg
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  <FilesMatch "\.(css|js|svg|png|jpe?g|webp|woff2?)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_deflate.c>
+  <IfModule mod_filter.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript image/svg+xml application/xml text/plain application/manifest+json
+  </IfModule>
+</IfModule>
