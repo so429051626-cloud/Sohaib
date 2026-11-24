@@ -1,0 +1,42 @@
+/* رمز التحقق: إعادة الإرسال مع مهلة بين كل إرسال وآخر */
+(function (document) {
+  'use strict';
+  var btn = document.querySelector('[data-resend]');
+  if (!btn) { return; }
+  var note = document.querySelector('[data-code-status]');
+  var label = btn.innerHTML;
+  var timer = null;
+  function say(ok, msg) {
+    if (!note) { return; }
+    note.className = 'slug-status ' + (ok ? 'is-ok' : 'is-bad');
+    note.textContent = msg;
+  }
+  function wait(seconds) {
+    var left = seconds;
+    var show = function () { btn.textContent = 'إعادة الإرسال بعد ' + left + ' ث'; };
+    clearInterval(timer);
+    btn.disabled = true;
+    show();
+    timer = setInterval(function () {
+      left -= 1;
+      if (left <= 0) { clearInterval(timer); btn.innerHTML = label; btn.disabled = false; return; }
+      show();
+    }, 1000);
+  }
+  btn.addEventListener('click', function () {
+    btn.disabled = true;
+    var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+    fetch(btn.getAttribute('data-resend'), {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-Token': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+      body: '{}'
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok && d.ok !== false, d: d }; }); })
+      .then(function (res) {
+        say(res.ok, res.d.message || '');
+        if (res.ok) { wait(60); } else { btn.disabled = false; }
+      })
+      .catch(function () { say(false, 'تعذّر الاتصال بالخادم.'); btn.disabled = false; });
+  });
+  // الرمز أُرسل للتوّ عند فتح الصفحة: تبدأ المهلة مباشرة
+  wait(parseInt(btn.getAttribute('data-wait'), 10) || 60);
+})(document);

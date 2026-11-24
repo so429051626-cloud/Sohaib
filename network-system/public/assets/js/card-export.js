@@ -1,0 +1,291 @@
+/* ==========================================================================
+   تصدير صفحات الكروت إلى PDF بدقة محددة (DPI)
+   يرسم الكروت على لوحة Canvas بنفس قواعد card-render.js ثم يجمع الصفحات
+   في ملف PDF (صور JPEG) دون أي مكتبة خارجية.
+   ========================================================================== */
+(function (window, document) {
+  'use strict';
+
+  var FONT = '"Plex Arabic", Tahoma, Arial, sans-serif';
+  var RTL_RE = /[֐-ࣿיִ-﷿ﹰ-﻿]/;
+  var imageCache = {};
+
+  function loadImage(src) {
+    if (!imageCache[src]) {
+      imageCache[src] = new Promise(function (resolve) {
+        var img = new Image();
+        img.onload = function () { resolve(img); };
+        img.onerror = function () { resolve(null); };
+        img.src = src;
+      });
+    }
+    return imageCache[src];
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  /** تحميل الصور والخطوط التي يحتاجها التصميم قبل الرسم */
+  function prepare(design, opts) {
+    var jobs = [];
+    var c = design.card || {};
+    if (c.image) { jobs.push(loadImage((opts.base || '') + '/' + c.image)); }
+    (design.elements || []).forEach(function (el) {
+      if (el.type === 'logo' && opts.logo) { jobs.push(loadImage((opts.base || '') + '/' + opts.logo)); }
+      if (el.type === 'image' && el.src) { jobs.push(loadImage((opts.base || '') + '/' + el.src)); }
+      if (el.type === 'text' && document.fonts && document.fonts.load) {
+        jobs.push(document.fonts.load((el.weight || 400) + ' 20px "Plex Arabic"', el.text || 'ا').catch(function () {}));
+      }
+    });
+    return Promise.all(jobs);
+  }
+
+  /** رسم كرت واحد؛ (x, y) و(w, h) بالبكسل، وpx = عدد البكسلات لكل مم */
+  function drawCard(ctx, design, data, x, y, w, h, px, opts) {
+    var c = design.card || {};
+    var radius = (c.radius || 0) * px;
+    ctx.save();
+    roundRect(ctx, x, y, w, h, radius);
+    ctx.clip();
+    ctx.fillStyle = c.bg || '#ffffff';
+    ctx.fillRect(x, y, w, h);
+    if (c.image) {
+      var bg = opts.images[(opts.base || '') + '/' + c.image];
+      if (bg) {
+        // ملء الكرت مع القص من المنتصف (cover)
+        var s = Math.max(w / bg.naturalWidth, h / bg.naturalHeight);
+        var dw = bg.naturalWidth * s, dh = bg.naturalHeight * s;
+        ctx.drawImage(bg, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+      }
+    }
+    (design.elements || []).forEach(function (el) { drawElement(ctx, el, data, x, y, w, h, px, opts); });
+    ctx.restore();
+    if (c.border) {
+      var lw = 0.25 * px;
+      ctx.save();
+      ctx.strokeStyle = c.borderColor || '#94a3b8';
+      ctx.lineWidth = lw;
+      roundRect(ctx, x + lw / 2, y + lw / 2, w - lw, h - lw, Math.max(0, radius - lw / 2));
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawElement(ctx, el, data, cx, cy, cw, ch, px, opts) {
+    var ex = cx + (el.x / 100) * cw;
+    var ey = cy + (el.y / 100) * ch;
+    var ew = (el.w / 100) * cw;
+    if (el.type === 'rect') {
+      ctx.fillStyle = el.bg || '#e2e8f0';
+      roundRect(ctx, ex, ey, ew, (el.h / 100) * ch, (el.radius || 0) * px);
+      ctx.fill();
+    } else if (el.type === 'text') {
+      drawText(ctx, el, SNCard.fill(el.text, data), ex, ey, ew, px);
+    } else if (el.type === 'qr') {
+      drawQr(ctx, SNCard.fill(el.data, data), el.color, ex, ey, ew);
+    } else if (el.type === 'logo' || el.type === 'image') {
+      var src = el.type === 'logo' ? opts.logo : el.src;
+      var img = src ? opts.images[(opts.base || '') + '/' + src] : null;
+      if (img) { ctx.drawImage(img, ex, ey, ew, ew * img.naturalHeight / img.naturalWidth); }
+    }
+  }
+
+  function drawText(ctx, el, text, ex, ey, ew, px) {
+    if (!text) { return; }
+    var dpi = px * 25.4;
+    var size = (el.size || 9) * dpi / 72;          // pt → بكسل
+    var weight = el.weight || 400;
+    var ls = (el.ls || 0) * dpi / 96;               // CSS px → بكسل
+    var padX = el.bg ? 0.8 * px : 0, padY = el.bg ? 0.4 * px : 0;
+    var rtl = el.font !== 'mono' && RTL_RE.test(text);
+    ctx.save();
+    ctx.direction = rtl ? 'rtl' : 'ltr';
+    if ('letterSpacing' in ctx) { ctx.letterSpacing = ls + 'px'; }
+    var setFont = function (s) { ctx.font = weight + ' ' + s + 'px ' + FONT; };
+    setFont(size);
+    var tw = ctx.measureText(text).width;
+    // تصغير النص ليلائم العرض كما في صفحة الطباعة
+    if (el.fit !== false && tw + padX * 2 > ew + 1) {
+      size = Math.max(3 * dpi / 72, size * ew / (tw + padX * 2) * 0.97);
+      setFont(size);
+      tw = ctx.measureText(text).width;
+    }
+    var lineH = size * 1.25;
+    if (el.bg) {
+      ctx.fillStyle = el.bg;
+      roundRect(ctx, ex, ey, ew, lineH + padY * 2, (el.radius || 0) * px);
+      ctx.fill();
+    }
+    // خط الأساس كما يحسبه المتصفح: نصف الفراغ + الصعود
+    var m = ctx.measureText(text);
+    var asc = m.fontBoundingBoxAscent, desc = m.fontBoundingBoxDescent;
+    var baseY;
+    if (asc && desc) {
+      ctx.textBaseline = 'alphabetic';
+      baseY = ey + padY + (lineH - (asc + desc)) / 2 + asc;
+    } else {
+      ctx.textBaseline = 'middle';
+      baseY = ey + padY + lineH / 2;
+    }
+    var align = el.align || 'center';
+    ctx.textAlign = align;
+    var tx = align === 'left' ? ex + padX : (align === 'right' ? ex + ew - padX : ex + ew / 2);
+    ctx.fillStyle = el.color || '#111111';
+    ctx.fillText(text, tx, baseY);
+    ctx.restore();
+  }
+
+  function drawQr(ctx, text, color, x, y, size) {
+    if (!window.qrcode) { return; }
+    var qr = window.qrcode(0, 'M');
+    qr.addData(text || ' ');
+    qr.make();
+    var n = qr.getModuleCount();
+    var cell = size / n;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x, y, size, size);
+    ctx.fillStyle = color || '#000000';
+    for (var r = 0; r < n; r++) {
+      for (var c = 0; c < n; c++) {
+        // تجاوز بسيط يمنع ظهور خطوط بيضاء رفيعة بين الخلايا
+        if (qr.isDark(r, c)) { ctx.fillRect(x + c * cell, y + r * cell, cell + 0.6, cell + 0.6); }
+      }
+    }
+  }
+
+  /** رسم صفحة كاملة على Canvas */
+  function drawPage(t, design, cards, dpi, opts) {
+    var px = dpi / 25.4;
+    var size = SNCard.cardSize(t);
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.round(t.paper_width * px);
+    canvas.height = Math.round(t.paper_height * px);
+    var ctx = canvas.getContext('2d');
+    if (!ctx) { throw new Error('canvas'); }
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    var w = size.w * px, h = size.h * px;
+    cards.forEach(function (data, i) {
+      var col = i % t.cols, row = Math.floor(i / t.cols);
+      // ترتيب الأعمدة من اليمين كما في صفحة الطباعة
+      var xmm = opts.rtl === false
+        ? t.margin_left + col * (size.w + t.gap_x)
+        : t.paper_width - t.margin_right - (col + 1) * size.w - col * t.gap_x;
+      var ymm = t.margin_top + row * (size.h + t.gap_y);
+      drawCard(ctx, design, data, xmm * px, ymm * px, w, h, px, opts);
+      if ((design.card || {}).cutMarks) {
+        var off = 0.6 * px;
+        ctx.save();
+        ctx.strokeStyle = '#9aa5b5';
+        ctx.lineWidth = 0.2 * px;
+        ctx.setLineDash([1.2 * px, 0.8 * px]);
+        ctx.strokeRect(xmm * px - off, ymm * px - off, w + off * 2, h + off * 2);
+        ctx.restore();
+      }
+    });
+    return canvas;
+  }
+
+  function canvasToJpeg(canvas, quality) {
+    return new Promise(function (resolve, reject) {
+      if (canvas.toBlob) {
+        canvas.toBlob(function (blob) {
+          if (!blob) { reject(new Error('blob')); return; }
+          blob.arrayBuffer().then(function (buf) { resolve(new Uint8Array(buf)); }, reject);
+        }, 'image/jpeg', quality);
+      } else {
+        var url = canvas.toDataURL('image/jpeg', quality);
+        if (url.length < 32) { reject(new Error('blob')); return; }
+        var bin = atob(url.split(',')[1]);
+        var out = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) { out[i] = bin.charCodeAt(i); }
+        resolve(out);
+      }
+    });
+  }
+
+  /** بناء ملف PDF من صور JPEG (صفحة لكل صورة) */
+  function buildPdf(pages, widthPt, heightPt) {
+    var enc = new TextEncoder();
+    var parts = [], offsets = [], length = 0;
+    function push(data) {
+      var bytes = typeof data === 'string' ? enc.encode(data) : data;
+      parts.push(bytes);
+      length += bytes.length;
+    }
+    function obj(n, body) { offsets[n] = length; push(n + ' 0 obj\n' + body + '\nendobj\n'); }
+    var W = widthPt.toFixed(2), H = heightPt.toFixed(2);
+    push('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+    var kids = pages.map(function (p, i) { return (3 + i * 3) + ' 0 R'; }).join(' ');
+    obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+    obj(2, '<< /Type /Pages /Kids [' + kids + '] /Count ' + pages.length + ' >>');
+    pages.forEach(function (p, i) {
+      var pageN = 3 + i * 3, contentN = pageN + 1, imageN = pageN + 2;
+      obj(pageN, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + W + ' ' + H + '] /Resources << /XObject << /Im0 ' + imageN + ' 0 R >> >> /Contents ' + contentN + ' 0 R >>');
+      var content = 'q ' + W + ' 0 0 ' + H + ' 0 0 cm /Im0 Do Q';
+      obj(contentN, '<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream');
+      offsets[imageN] = length;
+      push(imageN + ' 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + p.width + ' /Height ' + p.height +
+        ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + p.jpeg.length + ' >>\nstream\n');
+      push(p.jpeg);
+      push('\nendstream\nendobj\n');
+    });
+    var count = 3 + pages.length * 3;
+    var xref = length;
+    var table = 'xref\n0 ' + count + '\n0000000000 65535 f \n';
+    for (var n = 1; n < count; n++) { table += String(offsets[n]).padStart(10, '0') + ' 00000 n \n'; }
+    push(table + 'trailer\n<< /Size ' + count + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
+    return new Blob(parts, { type: 'application/pdf' });
+  }
+
+  /**
+   * تصدير الكروت إلى PDF.
+   * opts: dpi, base, logo, rtl, quality, onProgress(done, total)
+   */
+  function exportPdf(t, design, cards, opts) {
+    opts = opts || {};
+    var dpi = opts.dpi || 300;
+    var per = t.cols * t.rows;
+    var total = Math.ceil(cards.length / per);
+    var pages = [];
+    var images = {};
+    opts.images = images;
+    return prepare(design, opts).then(function () {
+      // جمع الصور المحمّلة في جدول يستخدمه الرسم المتزامن
+      return Promise.all(Object.keys(imageCache).map(function (k) {
+        return imageCache[k].then(function (img) { if (img) { images[k] = img; } });
+      }));
+    }).then(function () {
+      var chain = Promise.resolve();
+      for (var p = 0; p < total; p++) {
+        (function (p) {
+          chain = chain.then(function () {
+            var canvas = drawPage(t, design, cards.slice(p * per, (p + 1) * per), dpi, opts);
+            return canvasToJpeg(canvas, opts.quality || 0.92).then(function (jpeg) {
+              pages.push({ jpeg: jpeg, width: canvas.width, height: canvas.height });
+              canvas.width = canvas.height = 0;
+              if (opts.onProgress) { opts.onProgress(p + 1, total); }
+              // إعطاء المتصفح فرصة لتحديث الواجهة بين الصفحات
+              return new Promise(function (r) { setTimeout(r, 0); });
+            });
+          });
+        })(p);
+      }
+      return chain;
+    }).then(function () {
+      return buildPdf(pages, t.paper_width * 72 / 25.4, t.paper_height * 72 / 25.4);
+    });
+  }
+
+  window.SNCardExport = { exportPdf: exportPdf, drawPage: drawPage };
+})(window, document);

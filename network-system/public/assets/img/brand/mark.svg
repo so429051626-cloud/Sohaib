@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MADIX NEXUS">
+  <defs>
+    <linearGradient id="mnx-bg" x1="6" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1E3A8A"/>
+      <stop offset=".52" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+    <radialGradient id="mnx-glow" cx="32" cy="34" r="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#mnx-bg)"/>
+  <rect width="64" height="64" rx="16" fill="url(#mnx-glow)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M17 46 L32 50 L47 46 M32 36 L32 50" stroke-width="2" stroke-opacity=".45"/>
+    <path d="M17 46 V19 L32 36 L47 19 V46" stroke-width="4.6"/>
+  </g>
+  <g fill="#FFFFFF">
+    <circle cx="17" cy="46" r="4"/>
+    <circle cx="17" cy="19" r="4"/>
+    <circle cx="47" cy="19" r="4"/>
+    <circle cx="47" cy="46" r="4"/>
+    <circle cx="32" cy="50" r="2.6" fill-opacity=".8"/>
+    <circle cx="32" cy="36" r="5.6"/>
+  </g>
+  <circle cx="32" cy="36" r="2.4" fill="#06B6D4"/>
+</svg>
