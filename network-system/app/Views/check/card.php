@@ -3,9 +3,13 @@
 use App\Services\CardRules;
 use App\Services\Units;
 
-$v->title = 'كرت ' . $card['username'];
+$isAccount = (int) ($category['is_custom'] ?? 0) === 1;
+$v->title = ($isAccount ? 'الحساب ' : 'كرت ') . $card['username'];
 $v->breadcrumbs = [['فحص الكرت', '/check'], [$card['username'], null]];
-$v->subtitle = $card['category_name'] . ' · الدفعة: ' . $card['batch_name'];
+$v->subtitle = $isAccount ? 'حساب خاص' . ($card['batch_name'] !== \App\Services\CustomAccounts::NAME_PREFIX . $card['username'] ? ' · ' . $card['batch_name'] : '') : $card['category_name'] . ' · الدفعة: ' . $card['batch_name'];
+if ($isAccount && can('cards.accounts')) {
+    $v->actions = '<a class="btn btn-primary" href="' . e(url('/cards/accounts/' . $card['id'] . '/edit')) . '">' . icon('pencil') . 'تعديل الحساب</a>';
+}
 $reason = CardRules::blockReason($card, $category);
 $open = array_filter($sessions, static fn ($s) => $s['stopped_at'] === null);
 $pct = static function (?int $limit, int $used): ?int {

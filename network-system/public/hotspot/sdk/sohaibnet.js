@@ -73,6 +73,11 @@
     return s;
   }
 
+  // القيمة كما كُتبت (أرقام لاتينية فقط): لمستخدمي MikroTik المحليين الذين تهمّ حالة أحرف أسمائهم
+  function raw(value) {
+    return String(value == null ? '' : value).replace(/[٠-٩۰-۹]/g, function (c) { return DIGITS[c]; }).replace(/^\s+|\s+$/g, '');
+  }
+
   function encode(data) {
     var parts = [];
     for (var k in data) {
@@ -157,6 +162,7 @@
     var mt = window.SN_MT || {};
     var code = normalize(o.code);
     var password = normalize(o.password || '');
+    var rawCode = raw(o.code), rawPassword = raw(o.password || '');
     var loading = o.onLoading || function () {};
     var onError = o.onError || function (e) { window.alert(e.message); };
     if (!code) {
@@ -168,6 +174,8 @@
       key: cfg.key,
       code: code,
       password: password,
+      raw_code: rawCode !== code ? rawCode : null,
+      raw_password: rawPassword !== password ? rawPassword : null,
       mac: o.mac != null ? o.mac : mt.mac,
       ip: o.ip != null ? o.ip : mt.ip
     }, function (res) {
@@ -212,6 +220,125 @@
     });
   }
 
+  // ------------------------------------------------------------------
+  // إعلانات صفحة الدخول (عروض الشبكة وإعلانات المحلات)
+  // ------------------------------------------------------------------
+
+  /** قائمة الإعلانات: callback({ok, interval, ads:[{id,title,body,advertiser,image,link,phone,tel}]}) */
+  function ads(callback) {
+    var mt = window.SN_MT || {};
+    request('GET', '/api/hotspot/ads', { key: cfg.key, mac: mt.mac }, function (res) {
+      if (callback) { callback(res.data || { ok: false, ads: [] }); }
+    });
+  }
+
+  function adClick(id) {
+    var mt = window.SN_MT || {};
+    request('POST', '/api/hotspot/ads/' + id + '/click', { key: cfg.key, mac: mt.mac }, function () {});
+  }
+
+  var adsStyled = false;
+  function adsStyle() {
+    if (adsStyled) { return; }
+    adsStyled = true;
+    var css = '.sn-ads{position:relative;max-width:420px;margin:12px auto;font-family:inherit;direction:rtl;text-align:right}'
+      + '.sn-ad{display:none;border-radius:14px;overflow:hidden;background:#fff;color:#1b2540;box-shadow:0 6px 20px rgba(15,23,42,.12);border:1px solid rgba(15,23,42,.08)}'
+      + '.sn-ad.sn-on{display:block;animation:snAdIn .35s ease}'
+      + '@keyframes snAdIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}'
+      + '.sn-ad img{display:block;width:100%;max-height:200px;object-fit:cover}'
+      + '.sn-ad-b{padding:10px 14px 14px}'
+      + '.sn-ad-adv{font-size:12px;font-weight:600;color:#2453d6;margin-bottom:2px}'
+      + '.sn-ad-t{font-size:16px;font-weight:700;line-height:1.4}'
+      + '.sn-ad-x{font-size:13px;color:#475569;margin-top:4px;white-space:pre-line}'
+      + '.sn-ad-a{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}'
+      + '.sn-ad-a a{display:inline-block;padding:7px 14px;border-radius:999px;background:#2453d6;color:#fff;font-size:13px;font-weight:600;text-decoration:none}'
+      + '.sn-ad-a a.sn-alt{background:#eef2ff;color:#1b2540}'
+      + '.sn-ads-dots{display:flex;justify-content:center;gap:6px;margin-top:8px}'
+      + '.sn-ads-dots button{width:8px;height:8px;border-radius:50%;border:0;padding:0;background:rgba(100,116,139,.35);cursor:pointer}'
+      + '.sn-ads-dots button.sn-on{background:#2453d6;width:18px;border-radius:4px}';
+    var tag = document.createElement('style');
+    tag.appendChild(document.createTextNode(css));
+    (document.head || document.documentElement).appendChild(tag);
+  }
+
+  function el(name, cls, text) {
+    var e = document.createElement(name);
+    if (cls) { e.className = cls; }
+    if (text != null && text !== '') { e.appendChild(document.createTextNode(text)); }
+    return e;
+  }
+
+  /**
+   * عرض الإعلانات داخل عنصر (بالتناوب): SNHotspot.renderAds('#sn-ads') أو SNHotspot.renderAds(element)
+   * الخيارات: interval (ثوانٍ)، onEmpty()
+   */
+  function renderAds(target, o) {
+    o = o || {};
+    var box = typeof target === 'string' ? document.querySelector(target) : target;
+    if (!box) { return; }
+    ads(function (d) {
+      var list = (d && d.ok && d.ads) || [];
+      if (!list.length) { box.style.display = 'none'; if (o.onEmpty) { o.onEmpty(); } return; }
+      adsStyle();
+      box.className = (box.className ? box.className + ' ' : '') + 'sn-ads';
+      box.innerHTML = '';
+      var cards = [], dots = null, current = 0, timer = null;
+      for (var i = 0; i < list.length; i++) {
+        (function (ad, index) {
+          var card = el('div', 'sn-ad' + (index === 0 ? ' sn-on' : ''));
+          if (ad.image) { var img = document.createElement('img'); img.src = ad.image; img.alt = ''; card.appendChild(img); }
+          var b = el('div', 'sn-ad-b');
+          if (ad.advertiser) { b.appendChild(el('div', 'sn-ad-adv', ad.advertiser)); }
+          b.appendChild(el('div', 'sn-ad-t', ad.title));
+          if (ad.body) { b.appendChild(el('div', 'sn-ad-x', ad.body)); }
+          if (ad.tel || ad.link) {
+            var acts = el('div', 'sn-ad-a');
+            if (ad.tel) {
+              var call = el('a', '', 'اتصال ' + ad.phone);
+              call.href = 'tel:' + ad.tel;
+              call.onclick = function () { adClick(ad.id); };
+              acts.appendChild(call);
+            }
+            if (ad.link) {
+              var go = el('a', 'sn-alt', 'التفاصيل');
+              go.href = ad.link; go.target = '_blank'; go.rel = 'noopener';
+              go.onclick = function () { adClick(ad.id); };
+              acts.appendChild(go);
+            }
+            b.appendChild(acts);
+          }
+          card.appendChild(b);
+          box.appendChild(card);
+          cards.push(card);
+        })(list[i], i);
+      }
+      function show(n) {
+        cards[current].className = 'sn-ad';
+        if (dots) { dots.childNodes[current].className = ''; }
+        current = (n + cards.length) % cards.length;
+        cards[current].className = 'sn-ad sn-on';
+        if (dots) { dots.childNodes[current].className = 'sn-on'; }
+      }
+      if (cards.length > 1) {
+        dots = el('div', 'sn-ads-dots');
+        for (var j = 0; j < cards.length; j++) {
+          (function (n) {
+            var dot = document.createElement('button');
+            dot.type = 'button';
+            dot.setAttribute('aria-label', String(n + 1));
+            if (n === 0) { dot.className = 'sn-on'; }
+            dot.onclick = function () { show(n); restart(); };
+            dots.appendChild(dot);
+          })(j);
+        }
+        box.appendChild(dots);
+        var every = Math.max(3, Number(o.interval || d.interval || 6)) * 1000;
+        var restart = function () { clearInterval(timer); timer = setInterval(function () { show(current + 1); }, every); };
+        restart();
+      }
+    });
+  }
+
   function formatBytes(b) {
     b = Number(b) || 0;
     if (b <= 0) { return '0 MB'; }
@@ -229,12 +356,21 @@
     return parts.length ? parts.join(' و') : 'أقل من دقيقة';
   }
 
+  // عنصر الإعلانات في الصفحة (<div id="sn-ads"></div>) يُملأ تلقائياً
+  function autoAds() {
+    var box = document.getElementById('sn-ads');
+    if (box && !box.getAttribute('data-sn-manual')) { renderAds(box); }
+  }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', autoAds); } else { autoAds(); }
+
   window.SNHotspot = {
-    version: '1.0.0',
+    version: '1.2.0',
     config: cfg,
     login: login,
     status: status,
     info: info,
+    ads: ads,
+    renderAds: renderAds,
     submitLogin: submitLogin,
     normalize: normalize,
     md5: md5,

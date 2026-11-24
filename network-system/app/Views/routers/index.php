@@ -4,7 +4,18 @@ use App\Core\Request;
 
 $v->title = 'أجهزة MikroTik';
 if (can('routers.manage')) {
-    $v->actions = '<a class="btn btn-primary" href="' . e(url('/routers/create')) . '">' . icon('plus') . 'إضافة جهاز MikroTik</a>';
+    $v->actions = '<a class="btn" href="' . e(url('/routers/create')) . '">' . icon('plus') . 'إضافة يدوية</a>'
+        . '<a class="btn btn-primary" href="' . e(url('/routers/connect')) . '">' . icon('link') . 'ربط جهاز بـ 3 خطوات</a>';
+}
+// أجهزة لم يكتمل معالج ربطها
+$pendingConnect = [];
+if (can('routers.manage')) {
+    foreach ($routers as $r) {
+        $cs = \App\Services\RouterConnect::state((int) $r['id']);
+        if ($cs !== null && empty($cs['ready_at'])) {
+            $pendingConnect[(int) $r['id']] = true;
+        }
+    }
 }
 $req = Request::current();
 ?>
@@ -54,7 +65,8 @@ $req = Request::current();
           </td>
           <td><?= e($r['area_name'] ?? '—') ?></td>
           <td class="nowrap">
-            <?php if (!$r['is_active']): ?><span class="badge badge-outline">معطّل</span>
+            <?php if (isset($pendingConnect[(int) $r['id']])): ?><a class="badge badge-warning" href="<?= e(url('/routers/connect/' . $r['id'])) ?>"><?= icon('link', 'icon-sm') ?>أكمل الربط</a>
+            <?php elseif (!$r['is_active']): ?><span class="badge badge-outline">معطّل</span>
             <?php elseif ($r['status'] === 'online'): ?><span class="badge badge-success badge-dot">متصل</span>
             <?php elseif ($r['status'] === 'offline'): ?><span class="badge badge-danger badge-dot">منقطع</span>
             <?php else: ?><span class="badge badge-dot">غير معروف</span><?php endif; ?>
@@ -87,7 +99,7 @@ $req = Request::current();
       <?php endforeach; ?>
       <?php if (!$routers): ?>
         <tr><td colspan="10"><div class="empty"><?= icon('router') ?><div class="empty-title">لا توجد أجهزة MikroTik</div>
-          <?php if (can('routers.manage')): ?><a class="btn btn-primary" href="<?= e(url('/routers/create')) ?>"><?= icon('plus') ?>إضافة جهاز MikroTik</a><?php endif; ?></div></td></tr>
+          <?php if (can('routers.manage')): ?><a class="btn btn-primary" href="<?= e(url('/routers/connect')) ?>"><?= icon('link') ?>ربط جهاز بـ 3 خطوات</a><?php endif; ?></div></td></tr>
       <?php endif; ?>
       </tbody>
     </table>

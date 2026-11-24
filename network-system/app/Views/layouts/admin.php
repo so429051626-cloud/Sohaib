@@ -72,7 +72,7 @@ foreach ($nav as [, $items]) {
 }
 $initial = mb_substr(trim((string) $admin['name']), 0, 1);
 ?><!doctype html>
-<html <?= \App\Core\Lang::htmlAttrs() ?> data-theme="light" data-theme-pref="system"<?= Theme::attrs() ?>>
+<html <?= \App\Core\Lang::htmlAttrs() ?> data-theme="light" data-theme-pref="light"<?= Theme::attrs() ?>>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -85,10 +85,10 @@ $initial = mb_substr(trim((string) $admin['name']), 0, 1);
 <?= $v->partial('rum', ['area' => 'admin']) ?>
 <script>
 (function () {
-  var p = 'system';
-  try { p = localStorage.getItem('sn-theme') || 'system'; } catch (e) {}
-  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  document.documentElement.setAttribute('data-theme', p === 'system' ? (dark ? 'dark' : 'light') : p);
+  // الوضع فاتح دائماً ما لم يُختر الداكن يدوياً (لا يتبع إعداد الجهاز)
+  var p = 'light';
+  try { p = localStorage.getItem('sn-theme') === 'dark' ? 'dark' : 'light'; } catch (e) {}
+  document.documentElement.setAttribute('data-theme', p);
   document.documentElement.setAttribute('data-theme-pref', p);
 })();
 </script>
@@ -151,7 +151,6 @@ $initial = mb_substr(trim((string) $admin['name']), 0, 1);
           <div class="dropdown-menu">
             <button type="button" class="dropdown-item" data-theme-set="light"><?= icon('sun') ?>فاتح</button>
             <button type="button" class="dropdown-item" data-theme-set="dark"><?= icon('moon') ?>داكن</button>
-            <button type="button" class="dropdown-item" data-theme-set="system"><?= icon('monitor') ?>حسب الجهاز</button>
           </div>
         </div>
         <div class="dropdown">

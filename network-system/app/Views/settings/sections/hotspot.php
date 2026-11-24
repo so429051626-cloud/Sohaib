@@ -43,3 +43,4 @@ $cookieForced = \App\Services\CookiePolicy::forced();
       <div class="field col-6"><?= $switch('hotspot.events', 'إرسال أحداث الدخول والخروج من جهاز MikroTik إلى النظام') ?></div>
       <div class="field col-6"><?= $switch('hotspot.fallback', 'الدخول المباشر عبر جهاز MikroTik عند تعذّر الوصول إلى النظام') ?></div>
       <div class="field col-6"><?= $switch('hotspot.allow_unsold', 'قبول الكروت غير المسجّل بيعها') ?></div>
+      <div class="field col-6"><?= $switch('hotspot.local_users', 'دخول المستخدمين المنشأين يدوياً على جهاز MikroTik (غير الموجودين في النظام) مباشرة عبر الجهاز، دون حسابها محاولات خاطئة') ?></div>

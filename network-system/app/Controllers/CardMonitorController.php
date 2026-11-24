@@ -79,7 +79,7 @@ final class CardMonitorController extends Controller
             'tab' => $tab, 'filters' => $filters, 'rows' => $rows, 'pager' => $pager, 'total' => $total,
             'counts' => CardMonitor::counts(), 'request' => $request,
             'find' => $find, 'detail' => $detail, 'matches' => $matches, 'findWrong' => $findWrong,
-            'categories' => DB::pairs('SELECT id, name FROM categories ORDER BY sort, name'),
+            'categories' => DB::pairs('SELECT id, name FROM categories WHERE is_custom = 0 ORDER BY sort, name'),
             'routers' => DB::pairs("SELECT id, name FROM routers WHERE 1 = 1$rScope ORDER BY name", $rParams),
         ]);
     }

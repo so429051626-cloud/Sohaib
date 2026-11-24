@@ -8,7 +8,8 @@ use App\Core\Settings;
 use App\Permissions;
 
 $user = Auth::user();
-$themePref = $user['theme'] ?? 'system';
+// الوضع فاتح دائماً ما لم يختر المستخدم الداكن بنفسه (لا يتبع إعداد الجهاز)
+$themePref = ($user['theme'] ?? '') === 'dark' ? 'dark' : 'light';
 $networkName = Settings::networkName();
 $logo = (string) Settings::get('general.logo', '');
 $flash = Session::pull('_flash', []);
@@ -30,9 +31,8 @@ $initial = mb_substr(trim((string) $user['name']), 0, 1);
 <?= $v->partial('rum', ['area' => 'net']) ?>
 <script>
 (function () {
-  var p = document.documentElement.getAttribute('data-theme-pref') || 'system';
-  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  document.documentElement.setAttribute('data-theme', p === 'system' ? (dark ? 'dark' : 'light') : p);
+  var p = document.documentElement.getAttribute('data-theme-pref') === 'dark' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', p);
 })();
 </script>
 <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
@@ -73,7 +73,6 @@ $initial = mb_substr(trim((string) $user['name']), 0, 1);
             <div class="dropdown-head">المظهر</div>
             <button type="button" class="dropdown-item" data-theme-set="light"><?= icon('sun') ?>فاتح</button>
             <button type="button" class="dropdown-item" data-theme-set="dark"><?= icon('moon') ?>داكن</button>
-            <button type="button" class="dropdown-item" data-theme-set="system"><?= icon('monitor') ?>حسب الجهاز</button>
           </div>
         </div>
         <?php $siblingNets = \App\Core\Platform::enabled() && \App\Core\Auth::isOwner() ? \App\Core\Tenant::siblings() : []; ?>
@@ -116,7 +115,6 @@ $initial = mb_substr(trim((string) $user['name']), 0, 1);
               <div class="dropdown-head">المظهر</div>
               <button type="button" class="dropdown-item" data-theme-set="light"><?= icon('sun') ?>فاتح</button>
               <button type="button" class="dropdown-item" data-theme-set="dark"><?= icon('moon') ?>داكن</button>
-              <button type="button" class="dropdown-item" data-theme-set="system"><?= icon('monitor') ?>حسب الجهاز</button>
               <?php if (\App\Core\Lang::switchable()): $curLang = \App\Core\Lang::current(); ?>
               <div class="dropdown-sep"></div>
               <a class="dropdown-item<?= $curLang === 'ar' ? ' is-current' : '' ?>" href="<?= e(\App\Core\Lang::switchUrl('ar')) ?>" lang="ar" data-no-loading><?= icon($curLang === 'ar' ? 'circle-check' : 'globe') ?>العربية</a>

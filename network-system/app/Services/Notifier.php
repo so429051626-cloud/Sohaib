@@ -28,6 +28,7 @@ final class Notifier
         'security'     => 'الأمان',
         'tamper'       => 'تنبيهات التلاعب',
         'cable'        => 'خلل في كابل أو منفذ',
+        'heavy_usage'  => 'استهلاك زائد',
         'system'       => 'النظام',
         'messages'     => 'رسائل المشتركين',
     ];

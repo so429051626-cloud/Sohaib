@@ -52,9 +52,10 @@ final class PortalService
 
     /**
      * التحقق والتجهيز.
+     * $rawCode و$rawPassword: ما كتبه المستخدم قبل توحيد حالة الأحرف (من نسخ المكتبة الأحدث)، لمستخدمي MikroTik المحليين فقط.
      * @return array{ok:bool, error?:string, message?:string, username?:string, password?:string, fallback?:bool, info?:array}
      */
-    public static function login(string $key, string $code, string $password, ?string $macRaw, ?string $ip): array
+    public static function login(string $key, string $code, string $password, ?string $macRaw, ?string $ip, ?string $rawCode = null, ?string $rawPassword = null): array
     {
         $router = self::routerByKey($key);
         if (!$router) {
@@ -83,6 +84,12 @@ final class PortalService
 
         $owner = LoginRegistry::owner($code);
         if (!$owner) {
+            // ليس كرتاً ولا مشتركاً في النظام: قد يكون مستخدماً أُنشئ يدوياً على جهاز MikroTik
+            if (Settings::bool('hotspot.local_users')) {
+                $user = self::rawValue($rawCode, $code) ?? $code;
+                $pass = self::rawValue($rawPassword, $password) ?? $password;
+                return self::localLogin($router, $user, $pass, $mac, $ip);
+            }
             return self::fail($router, $code, $mac, $ip, 'not_found');
         }
         [$type, $id] = $owner;
@@ -90,6 +97,132 @@ final class PortalService
             return self::subscriberLogin($router, $id, $code, $password, $mac, $ip);
         }
         return self::cardLogin($router, $id, $type === 'card_short', $code, $password, $mac, $ip);
+    }
+
+    /**
+     * القيمة كما كتبها المستخدم (بأرقام لاتينية) إن كانت تطابق القيمة الموحّدة بعد التوحيد، وإلا null.
+     * توحيد حالة الأحرف يناسب الكروت، أما مستخدم MikroTik المحلي فاسمه وكلمة مروره بحالة أحرفهما الأصلية.
+     */
+    private static function rawValue(?string $raw, string $normalized): ?string
+    {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+        $raw = trim(latin_digits($raw));
+        if ($raw === '' || strlen($raw) > 64 || preg_match('/[\x00-\x1F]/', $raw)) {
+            return null;
+        }
+        // المكتبة توحّد الاسم وكلمة المرور بنفس الطريقة (الأرقام والمسافات وحالة الأحرف)
+        return hash_equals($normalized, self::normalizeCode($raw)) ? $raw : null;
+    }
+
+    /**
+     * مستخدم هوتسبوت محلي على جهاز MikroTik (أُنشئ يدوياً، غير موجود في النظام).
+     * يُفحص عبر واجهة API إن أمكن ليُعرض سبب الرفض بالعربية، ثم تُكمل الصفحة الدخول على جهاز MikroTik مباشرة.
+     * محاولات المستخدم المحلي لا تُحسب محاولات خاطئة ولا تقفل الجهاز؛ أما الرمز غير الموجود في النظام ولا على الجهاز
+     * فيُعامل كرقم كرت خاطئ كما كان (حماية الكروت من التخمين).
+     */
+    private static function localLogin(array $router, string $username, string $password, ?string $mac, ?string $ip): array
+    {
+        $check = self::localUser($router, $username);
+        if ($check['state'] === 'missing') {
+            return self::fail($router, $username, $mac, $ip, 'not_found');
+        }
+        $submit = $password !== '' ? $password : $username;
+        $info = null;
+        if ($check['state'] === 'found') {
+            $u = $check['user'];
+            if ($u['password'] !== null) {
+                if ($password === '') {
+                    // بلا كلمة مرور: يدخل إن كانت كلمة مروره فارغة أو هي اسمه، وإلا تطلب الصفحة كلمة المرور
+                    if ($u['password'] === '') {
+                        $submit = '';
+                    } elseif (!hash_equals($u['password'], $username)) {
+                        return ['ok' => false, 'error' => 'need_password', 'message' => CardRules::message('need_password'), 'need_password' => true];
+                    }
+                } elseif (!hash_equals($u['password'], $password)) {
+                    return self::fail($router, $username, $mac, $ip, 'wrong_password', null, null, false);
+                }
+            }
+            $reason = match (true) {
+                $u['disabled'] => 'disabled',
+                $u['limit_uptime'] > 0 && $u['uptime'] >= $u['limit_uptime'] => 'time_depleted',
+                $u['limit_bytes'] > 0 && $u['bytes'] >= $u['limit_bytes'] => 'data_depleted',
+                default => null,
+            };
+            if ($reason !== null) {
+                return self::fail($router, $username, $mac, $ip, $reason, null, null, false);
+            }
+            $info = self::localInfo($u);
+            if ($mac) {
+                Throttle::clear('hs:' . $router['id'] . ':' . $mac);
+            }
+        }
+        DB::insert('login_log', [
+            'created_at' => now(), 'router_id' => $router['id'], 'source' => 'portal', 'event' => 'check',
+            'login' => mb_substr($username, 0, 64), 'mac' => $mac, 'ip' => $ip, 'result' => 'accept', 'reason' => 'local',
+        ]);
+        return ['ok' => true, 'username' => $username, 'password' => $submit, 'type' => 'local', 'provisioned' => false, 'info' => $info];
+    }
+
+    /**
+     * البحث عن مستخدم محلي على جهاز MikroTik.
+     * @return array{state:string, user?:array} found: موجود · missing: غير موجود والهوتسبوت لا يستخدم RADIUS · unknown: تعذّر التحقق
+     */
+    private static function localUser(array $router, string $username): array
+    {
+        try {
+            $gw = Gateway::for($router, 4.0);
+            $c = $gw->client();
+            $row = $c->first('/ip/hotspot/user', ['name' => $username]);
+            if ($row === null) {
+                // خوادم الهوتسبوت التي تتحقق عبر RADIUS: المستخدم قد يكون هناك، فيُترك القرار لجهاز MikroTik
+                $radius = false;
+                foreach ($c->print('/ip/hotspot/profile', [], ['name', 'use-radius']) as $p) {
+                    if (($p['use-radius'] ?? 'false') === 'true') {
+                        $radius = true;
+                    }
+                }
+                $gw->close();
+                return ['state' => $radius ? 'unknown' : 'missing'];
+            }
+            $u = Gateway::normalizeHotspotUser($row);
+            $rate = null;
+            if ($u['profile'] !== '') {
+                $rate = (string) ($c->first('/ip/hotspot/user/profile', ['name' => $u['profile']], ['rate-limit'])['rate-limit'] ?? '');
+            }
+            $gw->close();
+            return ['state' => 'found', 'user' => [
+                'name' => $u['name'], 'profile' => $u['profile'],
+                // كلمة المرور لا تُقرأ إن لم تملك صلاحية API قراءة البيانات الحساسة: لا يُتحقق منها هنا
+                'password' => array_key_exists('password', $row) ? (string) $row['password'] : null,
+                'disabled' => $u['disabled'], 'uptime' => $u['uptime'], 'limit_uptime' => $u['limit_uptime'],
+                'bytes' => $u['bytes_in'] + $u['bytes_out'], 'limit_bytes' => $u['limit_bytes_total'], 'rate' => $rate,
+            ]];
+        } catch (\Throwable $e) {
+            if (!$e instanceof MikroTikException || !$e->isConnection()) {
+                log_message('portal', 'local user check router ' . $router['id'] . ': ' . $e->getMessage());
+            }
+            return ['state' => 'unknown'];
+        }
+    }
+
+    /** معلومات المستخدم المحلي بنفس شكل معلومات الكرت لصفحة الهوتسبوت */
+    private static function localInfo(array $u): array
+    {
+        $up = $down = null;
+        if (($u['rate'] ?? '') !== '' && preg_match('#^\s*([0-9.]+[kKmMgG]?)/([0-9.]+[kKmMgG]?)#', (string) $u['rate'], $m)) {
+            [$up, $down] = [$m[1], $m[2]];
+        }
+        return [
+            'category'       => $u['profile'] !== 'default' ? $u['profile'] : null,
+            'expires_at'     => null,
+            'remaining_time' => $u['limit_uptime'] > 0 ? max(0, $u['limit_uptime'] - $u['uptime']) : null,
+            'remaining_data' => $u['limit_bytes'] > 0 ? max(0, $u['limit_bytes'] - $u['bytes']) : null,
+            'used_time'      => (int) $u['uptime'],
+            'used_data'      => (int) $u['bytes'],
+            'speed'          => Units::describeRate(['rate_up' => $up, 'rate_down' => $down]),
+        ];
     }
 
     private static function cardLogin(array $router, int $cardId, bool $viaShort, string $code, string $password, ?string $mac, ?string $ip): array
@@ -270,7 +403,7 @@ final class PortalService
         $mac = normalize_mac($macRaw);
         $owner = LoginRegistry::owner(self::normalizeCode($username));
         if (!$owner) {
-            return ['ok' => false, 'message' => CardRules::message('not_found')];
+            return Settings::bool('hotspot.local_users') ? self::localStatus($router, trim($username), $mac) : ['ok' => false, 'message' => CardRules::message('not_found')];
         }
         [$type, $id] = $owner;
         if ($type === 'subscriber') {
@@ -291,6 +424,32 @@ final class PortalService
         return ['ok' => true, 'type' => 'card', 'info' => self::cardInfo($card, $cat)];
     }
 
+    /** حالة مستخدم MikroTik المحلي: تُعرض فقط للجهاز المتصل به الآن */
+    private static function localStatus(array $router, string $username, ?string $mac): array
+    {
+        if ($username === '' || strlen($username) > 64) {
+            return ['ok' => false, 'message' => CardRules::message('not_found')];
+        }
+        try {
+            $gw = Gateway::for($router, 4.0);
+            $active = $gw->client()->print('/ip/hotspot/active', ['user' => $username], ['mac-address']);
+            $gw->close();
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => CardRules::message('unavailable')];
+        }
+        $here = false;
+        foreach ($active as $a) {
+            if ($mac === null || normalize_mac($a['mac-address'] ?? '') === $mac) {
+                $here = true;
+            }
+        }
+        $check = $here ? self::localUser($router, $username) : ['state' => 'missing'];
+        if ($check['state'] !== 'found') {
+            return ['ok' => false, 'message' => CardRules::message('not_found')];
+        }
+        return ['ok' => true, 'type' => 'local', 'info' => self::localInfo($check['user'])];
+    }
+
     /** بيانات عامة لصفحة الهوتسبوت: الاسم والباقات والأسعار */
     public static function info(string $key): array
     {
@@ -298,7 +457,7 @@ final class PortalService
         if (!$router) {
             return ['ok' => false, 'message' => CardRules::message('router')];
         }
-        $cats = DB::rows('SELECT * FROM categories WHERE is_active = 1 AND show_on_hotspot = 1 ORDER BY sort, price');
+        $cats = DB::rows('SELECT * FROM categories WHERE is_active = 1 AND show_on_hotspot = 1 AND is_custom = 0 ORDER BY sort, price');
         $currency = (string) Settings::get('general.currency', '');
         return [
             'ok' => true,

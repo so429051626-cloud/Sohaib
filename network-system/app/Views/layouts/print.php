@@ -4,7 +4,8 @@ use App\Core\Auth;
 use App\Core\Settings;
 
 $user = Auth::user();
-$themePref = $user['theme'] ?? 'system';
+// الوضع فاتح دائماً ما لم يختر المستخدم الداكن بنفسه (لا يتبع إعداد الجهاز)
+$themePref = ($user['theme'] ?? '') === 'dark' ? 'dark' : 'light';
 $perPage = max(1, (int) $template['cols'] * (int) $template['rows']);
 $pageCount = (int) ceil(count($cards) / $perPage);
 $pw = rtrim(rtrim(number_format((float) $template['paper_width'], 2, '.', ''), '0'), '.');
@@ -19,9 +20,8 @@ $ph = rtrim(rtrim(number_format((float) $template['paper_height'], 2, '.', ''), 
 <title><?= e($v->title . ' · ' . Settings::networkName()) ?></title>
 <script>
 (function () {
-  var p = document.documentElement.getAttribute('data-theme-pref') || 'system';
-  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  document.documentElement.setAttribute('data-theme', p === 'system' ? (dark ? 'dark' : 'light') : p);
+  var p = document.documentElement.getAttribute('data-theme-pref') === 'dark' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', p);
 })();
 </script>
 <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">

@@ -86,7 +86,7 @@ final class AssistantActions
         }
         switch ($type) {
             case 'generate':
-                $cats = DB::rows('SELECT id, name, price FROM categories WHERE is_active = 1 ORDER BY sort, price');
+                $cats = DB::rows('SELECT id, name, price FROM categories WHERE is_active = 1 AND is_custom = 0 ORDER BY sort, price');
                 if (!$cats) {
                     throw new RuntimeException('لا توجد باقات كروت فعّالة.');
                 }
@@ -224,7 +224,7 @@ final class AssistantActions
                     'danger' => !str_ends_with($cmd, '/print') && !str_ends_with($cmd, '/getall'),
                 ];
             case 'sale':
-                $cats = DB::rows('SELECT id, name, price FROM categories WHERE is_active = 1 ORDER BY sort, price');
+                $cats = DB::rows('SELECT id, name, price FROM categories WHERE is_active = 1 AND is_custom = 0 ORDER BY sort, price');
                 if (!$cats) {
                     throw new RuntimeException('لا توجد باقات كروت فعّالة.');
                 }
@@ -319,7 +319,7 @@ final class AssistantActions
         $note = 'عبر المساعد الذكي';
         switch ($type) {
             case 'generate':
-                $cat = DB::row('SELECT * FROM categories WHERE id = ? AND is_active = 1', [(int) ($v['category_id'] ?? 0)]);
+                $cat = DB::row('SELECT * FROM categories WHERE id = ? AND is_active = 1 AND is_custom = 0', [(int) ($v['category_id'] ?? 0)]);
                 if (!$cat) {
                     throw new RuntimeException('اختر باقة صالحة.');
                 }
@@ -442,7 +442,7 @@ final class AssistantActions
                 $rows = array_slice(array_values(array_filter($rows, 'is_array')), 0, 60);
                 return ['message' => $rows ? 'تم تنفيذ الأمر. النتيجة (' . count($rows) . ' صف):' : 'تم تنفيذ الأمر.', 'rows' => $rows];
             case 'sale':
-                $cat = DB::row('SELECT * FROM categories WHERE id = ? AND is_active = 1', [(int) ($v['category_id'] ?? 0)]);
+                $cat = DB::row('SELECT * FROM categories WHERE id = ? AND is_active = 1 AND is_custom = 0', [(int) ($v['category_id'] ?? 0)]);
                 if (!$cat) {
                     throw new RuntimeException('اختر باقة صالحة.');
                 }

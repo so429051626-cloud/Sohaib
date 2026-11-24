@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS employees (
   role_preset      VARCHAR(40)  NULL,
   router_scope     ENUM('all','selected') NOT NULL DEFAULT 'all',
   status           ENUM('active','disabled') NOT NULL DEFAULT 'active',
-  theme            ENUM('system','light','dark') NOT NULL DEFAULT 'system',
+  theme            ENUM('system','light','dark') NOT NULL DEFAULT 'light',
   session_version  INT UNSIGNED NOT NULL DEFAULT 1,
   totp_secret      VARCHAR(255) NULL,
   totp_enabled     TINYINT(1)   NOT NULL DEFAULT 0,
@@ -258,6 +258,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 -- ---------------------------------------------------------------------------
 -- فئات البطاقات
 -- ---------------------------------------------------------------------------
+-- is_custom: باقة خاصة بحساب واحد من «الحسابات الخاصة»، لا تظهر مع باقات الكروت
 CREATE TABLE IF NOT EXISTS categories (
   id                    INT UNSIGNED NOT NULL AUTO_INCREMENT,
   name                  VARCHAR(100) NOT NULL,
@@ -279,12 +280,14 @@ CREATE TABLE IF NOT EXISTS categories (
   show_on_hotspot       TINYINT(1)   NOT NULL DEFAULT 1,
   low_stock             INT UNSIGNED NULL,
   is_active             TINYINT(1)   NOT NULL DEFAULT 1,
+  is_custom             TINYINT(1)   NOT NULL DEFAULT 0,
   sort                  INT          NOT NULL DEFAULT 0,
   notes                 VARCHAR(255) NULL,
   created_at            DATETIME     NOT NULL,
   updated_at            DATETIME     NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_categories_name (name)
+  UNIQUE KEY uq_categories_name (name),
+  KEY idx_categories_custom (is_custom)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS category_routers (
@@ -331,7 +334,7 @@ CREATE TABLE IF NOT EXISTS batches (
   id           INT UNSIGNED NOT NULL AUTO_INCREMENT,
   name         VARCHAR(120) NOT NULL,
   category_id  INT UNSIGNED NOT NULL,
-  source       ENUM('generated','imported','router') NOT NULL,
+  source       ENUM('generated','imported','router','custom') NOT NULL,
   quantity     INT UNSIGNED NOT NULL DEFAULT 0,
   options      TEXT         NULL,
   notes        VARCHAR(255) NULL,
@@ -628,6 +631,10 @@ CREATE TABLE IF NOT EXISTS sessions (
   bytes_in         BIGINT UNSIGNED NOT NULL DEFAULT 0,
   bytes_out        BIGINT UNSIGNED NOT NULL DEFAULT 0,
   stop_reason      VARCHAR(40)  NULL,
+  rate_down        BIGINT UNSIGNED NULL,
+  rate_up          BIGINT UNSIGNED NULL,
+  heavy_since      DATETIME     NULL,
+  heavy_alerted    TINYINT(1)   NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
   KEY idx_sessions_open (stopped_at, router_id),
   KEY idx_sessions_router_user (router_id, username, stopped_at),
@@ -1090,4 +1097,51 @@ CREATE TABLE IF NOT EXISTS cable_checks (
   KEY idx_cc_port (router_id, port, id),
   KEY idx_cc_created (created_at),
   CONSTRAINT fk_cc_router FOREIGN KEY (router_id) REFERENCES routers (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------------
+-- إعلانات صفحة الهوتسبوت: عروض الشبكة وإعلانات محلات المنطقة على صفحة الدخول
+-- routers: أرقام أجهزة MikroTik مفصولة بفواصل (فارغ = كل الأجهزة)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS hotspot_ads (
+  id           INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  title        VARCHAR(120)  NOT NULL,
+  body         VARCHAR(500)  NULL,
+  advertiser   VARCHAR(120)  NULL,
+  image        VARCHAR(255)  NULL,
+  link         VARCHAR(255)  NULL,
+  phone        VARCHAR(30)   NULL,
+  routers      VARCHAR(1000) NULL,
+  starts_on    DATE          NULL,
+  ends_on      DATE          NULL,
+  is_active    TINYINT(1)    NOT NULL DEFAULT 1,
+  sort         INT           NOT NULL DEFAULT 0,
+  views        INT UNSIGNED  NOT NULL DEFAULT 0,
+  clicks       INT UNSIGNED  NOT NULL DEFAULT 0,
+  created_by   INT UNSIGNED  NULL,
+  created_at   DATETIME      NOT NULL,
+  updated_at   DATETIME      NULL,
+  PRIMARY KEY (id),
+  KEY idx_hotspot_ads_active (is_active, sort)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------------
+-- تحديد سرعة مستهلك (كرت أو مشترك) مؤقتاً أو حتى الرفع: يُطبَّق بملف سرعة مخفّض على جهاز MikroTik
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS speed_caps (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  kind        ENUM('card','subscriber') NOT NULL,
+  ref_id      INT UNSIGNED NOT NULL,
+  username    VARCHAR(64)  NOT NULL,
+  rate_down   VARCHAR(20)  NOT NULL,
+  rate_up     VARCHAR(20)  NOT NULL,
+  reason      VARCHAR(160) NULL,
+  auto        TINYINT(1)   NOT NULL DEFAULT 0,
+  ends_at     DATETIME     NULL,
+  created_by  INT UNSIGNED NULL,
+  created_at  DATETIME     NOT NULL,
+  removed_at  DATETIME     NULL,
+  PRIMARY KEY (id),
+  KEY idx_speed_caps_ref (kind, ref_id, removed_at),
+  KEY idx_speed_caps_open (removed_at, ends_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

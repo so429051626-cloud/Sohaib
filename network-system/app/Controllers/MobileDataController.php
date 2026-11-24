@@ -163,7 +163,7 @@ final class MobileDataController extends Controller
     {
         $rows = DB::rows(
             "SELECT cat.*, (SELECT COUNT(*) FROM cards c WHERE c.category_id = cat.id AND c.status = 'new' AND c.is_disabled = 0) AS available
-             FROM categories cat ORDER BY cat.sort, cat.price"
+             FROM categories cat WHERE cat.is_custom = 0 ORDER BY cat.sort, cat.price"
         );
         return json_response(['ok' => true, 'items' => array_map(static fn ($c) => [
             'id'         => (int) $c['id'],
@@ -434,7 +434,7 @@ final class MobileDataController extends Controller
     {
         $cats = DB::rows(
             "SELECT cat.id, cat.name, cat.price, cat.color, (SELECT COUNT(*) FROM cards c WHERE c.category_id = cat.id AND c.status = 'new' AND c.is_disabled = 0) AS available
-             FROM categories cat WHERE cat.is_active = 1 ORDER BY cat.sort, cat.price"
+             FROM categories cat WHERE cat.is_active = 1 AND cat.is_custom = 0 ORDER BY cat.sort, cat.price"
         );
         return json_response([
             'ok'           => true,

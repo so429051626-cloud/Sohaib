@@ -83,7 +83,7 @@ final class RouterImport
                     continue;
                 }
                 $catId = $map[$profile];
-                $categories[$catId] ??= DB::row('SELECT * FROM categories WHERE id = ?', [$catId]);
+                $categories[$catId] ??= DB::row('SELECT * FROM categories WHERE id = ? AND is_custom = 0', [$catId]);
                 $cat = $categories[$catId];
                 if (!$cat) {
                     $errors++;

@@ -131,6 +131,31 @@ final class ProfileManager
         return $name;
     }
 
+    /**
+     * ملف سرعة مخفّض لمستخدم حُددت سرعته: نسخة من ملف باقته بسرعة التحديد.
+     * @param string $kind category | plan | plan_ppp
+     */
+    public static function ensureCapped(Gateway $gw, array $router, string $kind, array $row, array $cap): string
+    {
+        $name = self::cappedName($kind === 'category' ? self::categoryProfile((int) $row['id']) : self::planProfile((int) $row['id']), $cap);
+        $rate = UsageGuard::rateLimit($cap);
+        if ($kind === 'plan_ppp') {
+            $props = ['rate-limit' => $rate] + self::pppPlanProps($gw, $router, $row);
+            $gw->upsertPppProfile($name, $props);
+        } else {
+            $props = ['rate-limit' => $rate] + ($kind === 'category' ? self::categoryProps($router, $row) : self::hotspotPlanProps($router, $row));
+            $gw->upsertHotspotProfile($name, $props);
+        }
+        return $name;
+    }
+
+    /** اسم ملف السرعة المخفّض: sn-c5-cap-3M-512k */
+    public static function cappedName(string $base, array $cap): string
+    {
+        $slug = static fn (string $r): string => (string) preg_replace('/[^0-9A-Za-z]/', '', $r);
+        return $base . '-cap-' . $slug((string) $cap['rate_down']) . '-' . $slug((string) $cap['rate_up']);
+    }
+
     private static function apply(int $routerId, string $kind, int $refId, array $props, bool $force, callable $fn): void
     {
         $hash = crc32(json_encode($props, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));

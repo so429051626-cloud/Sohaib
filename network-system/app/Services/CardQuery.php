@@ -29,7 +29,9 @@ final class CardQuery
                 array_push($params, DB::like($q), $q, $q, DB::like($q));
             }
         }
-        if (!empty($f['category'])) {
+        if (($f['category'] ?? '') === 'custom') {
+            $where[] = 'c.category_id IN (SELECT id FROM categories WHERE is_custom = 1)';
+        } elseif (!empty($f['category'])) {
             $where[] = 'c.category_id = ?';
             $params[] = (int) $f['category'];
         }

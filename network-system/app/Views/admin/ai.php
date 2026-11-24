@@ -4,6 +4,7 @@
  * @var bool $hasGemini @var string $geminiSavedAt @var string $geminiModel
  * @var array $usage @var array $monthly @var array $byFeature @var array $tenants @var array $used
  */
+use App\Core\Platform;
 use App\Services\Ai;
 
 $v->title = 'الذكاء الاصطناعي';
@@ -83,6 +84,17 @@ $badge = ['ok' => 'badge-success', 'off' => 'badge-danger', 'no_key' => 'badge-w
             <?= error_html('gemini_model') ?>
           </div>
           <?php if ($hasGemini): ?><div class="field col-12" data-show-when="provider=gemini"><label class="check"><input type="checkbox" name="remove_gemini_key" value="1"><span>حذف المفتاح المحفوظ</span></label></div><?php endif; ?>
+
+          <div class="form-section-title">الحسابات الجديدة</div>
+          <div class="field col-6">
+            <label class="switch"><input type="checkbox" name="new_enabled" value="1"<?= checked(Platform::setting('ai.new_enabled') === '1') ?>><span class="track"></span><span>تفعيل المساعد الذكي تلقائياً لكل حساب جديد</span></label>
+          </div>
+          <div class="field col-6">
+            <label for="ai-default-limit">الحد الشهري الافتراضي للرسائل</label>
+            <div class="input-group"><input class="input input-ltr" id="ai-default-limit" name="default_limit" value="<?= e(old('default_limit', Platform::setting('ai.default_limit'))) ?>" inputmode="numeric"><span class="input-addon">رسالة</span></div>
+            <span class="hint">للحساب الذي لا تحدد باقته ولا إعداداته حداً</span>
+            <?= error_html('default_limit') ?>
+          </div>
         </div>
         <div class="form-actions">
           <button class="btn btn-primary"><?= icon('save') ?>حفظ</button>
@@ -99,12 +111,12 @@ $badge = ['ok' => 'badge-success', 'off' => 'badge-danger', 'no_key' => 'badge-w
       <div class="table-wrap"><table class="table">
         <thead><tr><th>الحساب</th><th>الباقة</th><th>مفعّل</th><th>الحد الشهري</th><th>المستخدم هذا الشهر</th></tr></thead>
         <tbody>
-        <?php foreach ($tenants as $t): $limit = $t['ai_limit'] !== null ? (int) $t['ai_limit'] : (int) $t['plan_ai']; $u = (int) ($used[$t['id']] ?? 0); ?>
+        <?php foreach ($tenants as $t): $limit = App\Core\Tenant::aiLimit($t); $inherited = App\Core\Tenant::aiLimit(['ai_limit' => null] + $t); $u = (int) ($used[$t['id']] ?? 0); ?>
           <tr>
             <td><a class="cell-title" href="<?= e(url('/admin/tenants/' . $t['id'])) ?>"><?= e($t['name']) ?></a><div class="tenant-link">/<?= e($t['slug']) ?></div></td>
             <td class="text-sm"><?= e($t['plan_name'] ?? '—') ?></td>
             <td><label class="switch"><input type="checkbox" name="enabled[]" value="<?= (int) $t['id'] ?>"<?= checked((int) $t['ai_enabled']) ?>><span class="track"></span></label></td>
-            <td><input class="input input-ltr input-sm" name="limit[<?= (int) $t['id'] ?>]" value="<?= $t['ai_limit'] !== null ? (int) $t['ai_limit'] : '' ?>" inputmode="numeric" placeholder="<?= (int) $t['plan_ai'] ?>" style="max-width:120px"></td>
+            <td><input class="input input-ltr input-sm" name="limit[<?= (int) $t['id'] ?>]" value="<?= $t['ai_limit'] !== null ? (int) $t['ai_limit'] : '' ?>" inputmode="numeric" placeholder="<?= (int) $inherited ?>" style="max-width:120px"></td>
             <td class="nowrap"><?= num($u) ?> / <?= num($limit) ?><?php if ($limit > 0 && $u >= $limit): ?> <span class="badge badge-danger">انتهى الحد</span><?php endif; ?></td>
           </tr>
         <?php endforeach; ?>

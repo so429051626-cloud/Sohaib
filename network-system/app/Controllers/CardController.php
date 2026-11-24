@@ -49,8 +49,9 @@ final class CardController extends Controller
         $counts = DB::pairs("SELECT c.status, COUNT(*) FROM cards c WHERE $where GROUP BY c.status", $params);
         return view('cards/index', [
             'rows' => $rows, 'pager' => $pager, 'filters' => $filters, 'counts' => $counts, 'total' => $total,
-            'categories' => DB::pairs('SELECT id, name FROM categories ORDER BY sort, name'),
-            'batches' => DB::pairs('SELECT id, name FROM batches ORDER BY id DESC LIMIT 300'),
+            'categories' => DB::pairs('SELECT id, name FROM categories WHERE is_custom = 0 ORDER BY sort, name'),
+            'hasAccounts' => (bool) DB::value('SELECT 1 FROM categories WHERE is_custom = 1 LIMIT 1'),
+            'batches' => DB::pairs("SELECT id, name FROM batches WHERE source <> 'custom' ORDER BY id DESC LIMIT 300"),
             'distributors' => DB::pairs('SELECT id, name FROM distributors ORDER BY name'),
             'routers' => DB::pairs('SELECT id, name FROM routers WHERE is_active = 1 ORDER BY name'),
         ]);
@@ -90,7 +91,7 @@ final class CardController extends Controller
 
     public function generateForm(Request $request): Response
     {
-        $categories = DB::rows('SELECT * FROM categories WHERE is_active = 1 ORDER BY sort, price');
+        $categories = DB::rows('SELECT * FROM categories WHERE is_active = 1 AND is_custom = 0 ORDER BY sort, price');
         $catRouters = [];
         foreach (DB::rows('SELECT category_id, router_id FROM category_routers') as $r) {
             $catRouters[(int) $r['category_id']][] = (int) $r['router_id'];
@@ -218,7 +219,7 @@ final class CardController extends Controller
             'rows' => $rows,
             'preview' => array_slice($rows, 0, 15),
             'guess' => $guess,
-            'categories' => DB::pairs('SELECT id, name FROM categories WHERE is_active = 1 ORDER BY sort, name'),
+            'categories' => DB::pairs('SELECT id, name FROM categories WHERE is_active = 1 AND is_custom = 0 ORDER BY sort, name'),
         ]);
     }
 

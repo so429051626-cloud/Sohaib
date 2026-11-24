@@ -22,6 +22,10 @@ if (can('routers.reboot')) {
 if (can('routers.manage')) {
     $actions .= '<a class="btn" href="' . e(url('/routers/' . $router['id'] . '/edit')) . '">' . icon('pencil') . 'تعديل</a>';
 }
+$connectState = can('routers.manage') ? \App\Services\RouterConnect::state((int) $router['id']) : null;
+if ($connectState !== null && empty($connectState['ready_at'])) {
+    $actions = '<a class="btn btn-primary" href="' . e(url('/routers/connect/' . $router['id'])) . '">' . icon('link') . 'أكمل الربط</a>' . $actions;
+}
 $v->actions = $actions;
 $visibleTabs = RouterController::TABS;
 if (!can('routers.control')) {

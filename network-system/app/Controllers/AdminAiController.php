@@ -101,6 +101,15 @@ final class AdminAiController extends Controller
             $gmodel = $list['ok'] ? $list['suggested'] : '';
         }
         $values = ['ai.provider' => $provider, 'ai.model' => $d['model'], 'ai.enabled' => $request->bool('enabled') ? '1' : '0'];
+        // الحسابات الجديدة: تفعيل تلقائي والحد الشهري الافتراضي
+        if ($request->input('default_limit') !== null) {
+            $limit = trim(latin_digits($request->str('default_limit')));
+            if ($limit === '' || !ctype_digit($limit) || (int) $limit > 1000000) {
+                return $this->backWithErrors($request, ['default_limit' => 'الحد الافتراضي رقم من 0 إلى 1000000.'], '/admin/ai');
+            }
+            $values['ai.default_limit'] = (string) (int) $limit;
+            $values['ai.new_enabled'] = $request->bool('new_enabled') ? '1' : '0';
+        }
         if ($gmodel !== '') {
             $values['ai.gemini_model'] = $gmodel;
         }

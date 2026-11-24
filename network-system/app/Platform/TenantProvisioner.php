@@ -136,6 +136,8 @@ final class TenantProvisioner
             'activated_at' => $status === 'active' ? $now : null,
             'db_name' => $dbName, 'app_key' => 'base64:' . base64_encode(random_bytes(32)), 'cron_key' => bin2hex(random_bytes(20)),
             'signup_ip' => $d['ip'] ?? null, 'created_at' => $now,
+            // المساعد الذكي مفعّل للحساب الجديد افتراضياً (بالحد الافتراضي ما لم تحدده باقة)
+            'ai_enabled' => Platform::setting('ai.new_enabled') === '1' ? 1 : 0,
         ]);
         $tenant = DB::row('SELECT * FROM tenants WHERE id = ?', [$id]);
         $created = false;
@@ -158,7 +160,7 @@ final class TenantProvisioner
                 $st->execute([$k, $v, $now]);
             }
             $pdo->prepare('INSERT INTO employees (name, username, password_hash, phone, email, is_owner, role_preset, router_scope, status, theme, created_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)')
-                ->execute([$d['owner_name'], $d['username'], $d['password_hash'] ?? password_hash($d['password'], PASSWORD_DEFAULT), $d['phone'] ?? null, $d['email'] ?? null, 'manager', 'all', 'active', 'system', $now]);
+                ->execute([$d['owner_name'], $d['username'], $d['password_hash'] ?? password_hash($d['password'], PASSWORD_DEFAULT), $d['phone'] ?? null, $d['email'] ?? null, 'manager', 'all', 'active', 'light', $now]);
             $tenant['owner_id'] = (int) $pdo->lastInsertId();
         } catch (Throwable $e) {
             if ($created) {
@@ -224,6 +226,8 @@ final class TenantProvisioner
             'activated_at' => $status === 'active' ? $now : null,
             'db_name' => $dbName, 'app_key' => $oldKey ?? ('base64:' . base64_encode(random_bytes(32))), 'cron_key' => bin2hex(random_bytes(20)),
             'signup_ip' => $d['ip'] ?? null, 'created_at' => $now,
+            // المساعد الذكي مفعّل للحساب الجديد افتراضياً (بالحد الافتراضي ما لم تحدده باقة)
+            'ai_enabled' => Platform::setting('ai.new_enabled') === '1' ? 1 : 0,
         ]);
         $tenant = DB::row('SELECT * FROM tenants WHERE id = ?', [$id]);
         $created = false;

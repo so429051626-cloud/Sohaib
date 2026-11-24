@@ -10,13 +10,15 @@ use App\Core\Paginator;
 use App\Core\Request;
 use App\Core\Response;
 use App\Services\CardService;
+use App\Services\CustomAccounts;
 use App\Services\JobRunner;
 
 final class BatchController extends Controller
 {
     public function index(Request $request): Response
     {
-        $where = '1 = 1';
+        // دفعات الحسابات الخاصة تُدار من صفحتها
+        $where = "b.source <> 'custom'";
         $params = [];
         if ($request->int('category') > 0) {
             $where .= ' AND b.category_id = ?';
@@ -53,12 +55,25 @@ final class BatchController extends Controller
                 $rows[$i][$k] = (int) ($stats[(int) $row['id']][$k] ?? 0);
             }
         }
-        $categories = DB::pairs('SELECT id, name FROM categories ORDER BY sort, name');
+        $categories = DB::pairs('SELECT id, name FROM categories WHERE is_custom = 0 ORDER BY sort, name');
         return view('batches/index', compact('rows', 'pager', 'categories'));
+    }
+
+    /** دفعة حساب خاص: تُدار من صفحة الحساب نفسه */
+    private function accountRedirect(int $batchId): ?Response
+    {
+        if (DB::value("SELECT source FROM batches WHERE id = ?", [$batchId]) !== 'custom') {
+            return null;
+        }
+        $card = CustomAccounts::cardForBatch($batchId);
+        return $card ? redirect('/cards/accounts/' . $card . '/edit') : redirect('/cards/accounts');
     }
 
     public function show(Request $request, int $id): Response
     {
+        if ($r = $this->accountRedirect($id)) {
+            return $r;
+        }
         $batch = DB::row(
             'SELECT b.*, c.name AS category_name, c.color, c.price, e.name AS employee_name
              FROM batches b JOIN categories c ON c.id = b.category_id LEFT JOIN employees e ON e.id = b.created_by WHERE b.id = ?',
@@ -87,6 +102,9 @@ final class BatchController extends Controller
      */
     public function routers(Request $request, int $id): Response
     {
+        if ($r = $this->accountRedirect($id)) {
+            return $r;
+        }
         $batch = DB::row('SELECT * FROM batches WHERE id = ?', [$id]);
         $this->notFoundUnless($batch);
         $old = array_map('intval', DB::column('SELECT router_id FROM batch_routers WHERE batch_id = ?', [$id]));
@@ -149,6 +167,9 @@ final class BatchController extends Controller
 
     public function update(Request $request, int $id): Response
     {
+        if ($r = $this->accountRedirect($id)) {
+            return $r;
+        }
         $batch = DB::row('SELECT * FROM batches WHERE id = ?', [$id]);
         $this->notFoundUnless($batch);
         $d = $this->validate($request, ['name' => 'required|max:120', 'notes' => 'nullable|max:255'], ['name' => 'اسم الدفعة']);
@@ -158,6 +179,9 @@ final class BatchController extends Controller
 
     public function destroy(Request $request, int $id): Response
     {
+        if ($r = $this->accountRedirect($id)) {
+            return $r;
+        }
         $batch = DB::row('SELECT * FROM batches WHERE id = ?', [$id]);
         $this->notFoundUnless($batch);
         $used = (int) DB::value('SELECT COUNT(*) FROM cards WHERE batch_id = ? AND (first_login_at IS NOT NULL OR sale_id IS NOT NULL)', [$id]);

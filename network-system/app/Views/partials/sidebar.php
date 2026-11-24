@@ -14,6 +14,7 @@ $nav = [
         ['فحص الكابلات', '/cables', 'cable', 'routers.cables'],
         ['الأنفاق الآمنة', '/tunnels', 'waypoints', 'routers.manage', 'tunnel'],
         ['المتصلون الآن', '/sessions', 'activity', 'sessions.view'],
+        ['الاستهلاك الزائد', '/usage', 'gauge', 'usage.view'],
         ['سجل الجلسات', '/sessions/history', 'history', 'sessions.view'],
         ['الأجهزة', '/devices', 'smartphone', 'devices.view'],
         ['خريطة الشبكة', '/map', 'map', 'map.view'],
@@ -28,6 +29,7 @@ $nav = [
         ['الكروت', $cardsHome, 'ticket', ['cards.view', 'cards.import', 'cards.print', 'print.templates'], null, ['/cards', '/cards/import', '/cards/settings', '/print']],
         ['متابعة الكروت', '/cards/monitor', 'credit-card', 'cards.monitor'],
         ['توليد كروت', '/cards/generate', 'wand-sparkles', 'cards.generate'],
+        ['الحسابات الخاصة', '/cards/accounts', 'user-plus', 'cards.accounts'],
         ['اختصار الأرقام', '/shortener', 'link-2', 'cards.short'],
         ['الدفعات', '/batches', 'boxes', 'cards.view'],
         ['الباقات', '/categories', 'layers', 'categories.view'],
@@ -52,6 +54,7 @@ $nav = [
     ['الهوتسبوت', [
         ['ربط الهوتسبوت', '/hotspot', 'wifi', 'hotspot.manage'],
         ['سجل الدخول', '/hotspot/log', 'list-checks', 'hotspot.log'],
+        ['إعلانات الصفحة', '/hotspot/ads', 'megaphone', 'hotspot.ads'],
         ['إعدادات الهوتسبوت', '/hotspot/settings', 'settings', 'settings.manage'],
     ]],
     ['الرسائل النصية', [

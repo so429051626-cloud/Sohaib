@@ -154,7 +154,7 @@ final class Installer
         }
 
         $pdo->prepare('INSERT INTO employees (name, username, password_hash, is_owner, role_preset, router_scope, status, theme, created_at) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)')
-            ->execute([$input['admin_name'], $input['admin_username'], password_hash($input['admin_password'], PASSWORD_DEFAULT), 'manager', 'all', 'active', 'system', $now]);
+            ->execute([$input['admin_name'], $input['admin_username'], password_hash($input['admin_password'], PASSWORD_DEFAULT), 'manager', 'all', 'active', 'light', $now]);
 
         $config = [
             'app' => [

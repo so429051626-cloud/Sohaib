@@ -193,7 +193,7 @@ final class TelegramBot
             }
         }
         $cards = DB::rows("SELECT c.name, COUNT(k.id) AS n, c.low_stock FROM categories c LEFT JOIN cards k ON k.category_id = c.id AND k.status = 'new' AND k.is_disabled = 0
-                           WHERE c.is_active = 1 GROUP BY c.id, c.name, c.low_stock ORDER BY c.sort, c.name");
+                           WHERE c.is_active = 1 AND c.is_custom = 0 GROUP BY c.id, c.name, c.low_stock ORDER BY c.sort, c.name");
         if ($cards) {
             $lines[] = '';
             $lines[] = '<b>الكروت المتاحة</b>';

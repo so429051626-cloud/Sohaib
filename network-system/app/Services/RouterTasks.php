@@ -23,11 +23,12 @@ final class RouterTasks
         'sub_remove'     => 'حذف مشترك',
         'ppp_disconnect' => 'فصل مشترك PPP',
         'profile_sync'   => 'مزامنة ملف سرعة',
+        'profile_remove' => 'حذف ملف سرعة',
         'binding'        => 'ربط جهاز',
     ];
 
     /** عمليات لا تُعاد عند رفض جهاز MikroTik لها (حذف عنصر غير موجود مثلاً) */
-    private const IDEMPOTENT = ['card_remove', 'hs_disconnect', 'ppp_disconnect', 'sub_remove'];
+    private const IDEMPOTENT = ['card_remove', 'hs_disconnect', 'ppp_disconnect', 'sub_remove', 'profile_remove'];
 
     private static array $routers = [];
 
@@ -190,6 +191,13 @@ final class RouterTasks
                             ProfileManager::ensureHotspotPlan($gw, $router, $plan, true);
                         }
                     }
+                }
+                break;
+            case 'profile_remove':
+                // ملف سرعة لم يعد مستخدماً (حساب خاص محذوف، أو تحديد سرعة مرفوع): يُحذف فقط إن لم يبق مستخدم هوتسبوت عليه
+                $name = (string) ($p['name'] ?? '');
+                if (preg_match('/^sn-(c\d+|[cp]\d+-cap-[0-9A-Za-z]+-[0-9A-Za-z]+)$/', $name) && !$gw->client()->print('/ip/hotspot/user', ['profile' => $name], ['.id'])) {
+                    $gw->removeHotspotProfile($name);
                 }
                 break;
             case 'binding':

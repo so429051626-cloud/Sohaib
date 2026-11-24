@@ -12,7 +12,7 @@ use Throwable;
 final class Migrator
 {
     /** نسخة البنية التي تتوقعها الشيفرة الحالية */
-    public const VERSION = 12;
+    public const VERSION = 15;
 
     private static bool $checked = false;
 
@@ -124,6 +124,27 @@ final class Migrator
                 // بوت خدمة الزبائن صار للمنصة كلها (قاعدة المنصة): جداوله القديمة في الشبكة لم تعد تُستخدم
                 DB::pdo()->exec('DROP TABLE IF EXISTS bot_messages');
                 DB::pdo()->exec('DROP TABLE IF EXISTS bot_chats');
+                break;
+            case 13:
+                // الحسابات الخاصة: حساب هوتسبوت باسم مستخدم وكلمة مرور وحدود خاصة به (باقة ودفعة مخفيتان لكل حساب)
+                self::addColumns('categories', ['is_custom' => 'TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active']);
+                self::addIndex('categories', 'idx_categories_custom', '(is_custom)');
+                DB::query("ALTER TABLE batches MODIFY COLUMN source ENUM('generated','imported','router','custom') NOT NULL");
+                // الوضع الفاتح افتراضياً بدل «حسب الجهاز»، ومن اختار الداكن يبقى عليه
+                DB::query("ALTER TABLE employees MODIFY COLUMN theme ENUM('system','light','dark') NOT NULL DEFAULT 'light'");
+                DB::query("UPDATE employees SET theme = 'light' WHERE theme = 'system'");
+                break;
+            case 14:
+                // إعلانات صفحة الهوتسبوت
+                self::createTables(['hotspot_ads']);
+                break;
+            case 15:
+                // كشف الاستهلاك الزائد: السرعة الحالية لكل جلسة، وتحديد سرعة المستهلكين
+                self::addColumns('sessions', [
+                    'rate_down' => 'BIGINT UNSIGNED NULL', 'rate_up' => 'BIGINT UNSIGNED NULL',
+                    'heavy_since' => 'DATETIME NULL', 'heavy_alerted' => 'TINYINT(1) NOT NULL DEFAULT 0',
+                ]);
+                self::createTables(['speed_caps']);
                 break;
         }
     }

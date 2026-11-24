@@ -38,7 +38,6 @@ if ($twoFactor['setup'] !== null) {
         <div class="field col-6">
           <label for="theme">المظهر</label>
           <select class="input" id="theme" name="theme">
-            <option value="system"<?= selected($user['theme'], 'system') ?>>حسب الجهاز</option>
             <option value="light"<?= selected($user['theme'], 'light') ?>>فاتح</option>
             <option value="dark"<?= selected($user['theme'], 'dark') ?>>داكن</option>
           </select>

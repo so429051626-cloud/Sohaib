@@ -37,6 +37,10 @@ final class Provisioner
         }
         $category = DB::row('SELECT * FROM categories WHERE id = ?', [$card['category_id']]);
         $profile = ProfileManager::ensureCategory($gw, $router, $category);
+        // سرعة محددة (استهلاك زائد): ملف مخفّض بدل ملف الباقة حتى يُرفع التحديد
+        if ($cap = UsageGuard::activeCap('card', (int) $card['id'])) {
+            $profile = ProfileManager::ensureCapped($gw, $router, 'category', $category, $cap);
+        }
 
         $entry = $gw->hotspotUser($card['username']);
         if ($entry) {
@@ -120,10 +124,14 @@ final class Provisioner
         $plan = DB::row('SELECT * FROM plans WHERE id = ?', [$sub['plan_id']]);
         $enabled = SubscriberRules::blockReason($sub, $plan) === null;
 
+        $cap = UsageGuard::activeCap('subscriber', (int) $sub['id']);
         if ($plan['service'] === 'ppp') {
             $profile = ProfileManager::ensurePppPlan($gw, $router, $plan, false);
             if ((int) $sub['fup_active'] === 1 && ProfileManager::fupRate($plan) !== null) {
                 $profile = ProfileManager::ensurePppPlan($gw, $router, $plan, true);
+            }
+            if ($cap) {
+                $profile = ProfileManager::ensureCapped($gw, $router, 'plan_ppp', $plan, $cap);
             }
             $props = [
                 'name'      => $sub['username'],
@@ -158,6 +166,9 @@ final class Provisioner
             }
         } else {
             $profile = ProfileManager::ensureHotspotPlan($gw, $router, $plan);
+            if ($cap) {
+                $profile = ProfileManager::ensureCapped($gw, $router, 'plan', $plan, $cap);
+            }
             $props = [
                 'name'        => $sub['username'],
                 'password'    => $sub['password'],

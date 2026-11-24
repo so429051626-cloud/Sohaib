@@ -121,6 +121,8 @@ final class RouterSync
             }
             self::metrics($router, $update, true);
             DB::update('routers', $update, 'id = ?', [$router['id']]);
+            // كشف الاستهلاك الزائد بعد تحديث سرعات الجلسات وحمل الجهاز
+            self::guard(static fn () => UsageGuard::check($update + $router));
             self::guard(static fn () => PowerMonitor::record($router, $update['voltage'] !== null ? (float) $update['voltage'] : null, $update['temperature'] !== null ? (float) $update['temperature'] : null));
 
             if ($wasOffline) {

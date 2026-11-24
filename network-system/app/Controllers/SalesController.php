@@ -76,7 +76,7 @@ final class SalesController extends Controller
         );
         return view('sales/index', [
             'rows' => $rows, 'pager' => $pager, 'filters' => $f, 'summary' => $summary, 'request' => $request,
-            'categories' => DB::pairs('SELECT id, name FROM categories ORDER BY sort, name'),
+            'categories' => DB::pairs('SELECT id, name FROM categories WHERE is_custom = 0 ORDER BY sort, name'),
             'distributors' => DB::pairs('SELECT id, name FROM distributors ORDER BY name'),
             'employees' => DB::pairs('SELECT id, name FROM employees ORDER BY name'),
         ]);
@@ -101,7 +101,7 @@ final class SalesController extends Controller
         }
         $categories = DB::rows(
             "SELECT c.*, (SELECT COUNT(*) FROM cards k WHERE k.category_id = c.id AND k.status = 'new' AND k.is_disabled = 0) AS available
-             FROM categories c WHERE c.is_active = 1 ORDER BY c.sort, c.price, c.name"
+             FROM categories c WHERE c.is_active = 1 AND c.is_custom = 0 ORDER BY c.sort, c.price, c.name"
         );
         return view('sales/create', [
             'categories' => $categories,

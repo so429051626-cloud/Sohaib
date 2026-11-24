@@ -8,6 +8,7 @@ use App\Core\Auth;
 use App\Core\DB;
 use App\Core\Request;
 use App\Core\Response;
+use App\Services\CustomAccounts;
 use App\Services\JobRunner;
 use App\Services\Units;
 
@@ -24,6 +25,7 @@ final class CategoryController extends Controller
                     SUM(k.status IN ('expired','depleted')) AS ended,
                     (SELECT COUNT(*) FROM category_routers cr WHERE cr.category_id = c.id) AS router_limit
              FROM categories c LEFT JOIN cards k ON k.category_id = c.id
+             WHERE c.is_custom = 0
              GROUP BY c.id ORDER BY c.sort, c.price, c.name"
         );
         return view('categories/index', compact('categories'));
@@ -38,6 +40,12 @@ final class CategoryController extends Controller
     {
         $cat = DB::row('SELECT * FROM categories WHERE id = ?', [$id]);
         $this->notFoundUnless($cat);
+        if ((int) $cat['is_custom'] === 1) {
+            // باقة حساب خاص: تُعدَّل من صفحة الحساب نفسه
+            $card = CustomAccounts::cardForCategory($id);
+            $this->notFoundUnless($card);
+            return redirect('/cards/accounts/' . $card . '/edit');
+        }
         return $this->form($cat);
     }
 
@@ -128,7 +136,7 @@ final class CategoryController extends Controller
 
     public function update(Request $request, int $id): Response
     {
-        $cat = DB::row('SELECT * FROM categories WHERE id = ?', [$id]);
+        $cat = DB::row('SELECT * FROM categories WHERE id = ? AND is_custom = 0', [$id]);
         $this->notFoundUnless($cat);
         $data = $this->data($request, $cat);
         DB::transaction(function () use ($id, $data, $request) {
@@ -154,7 +162,7 @@ final class CategoryController extends Controller
 
     public function destroy(Request $request, int $id): Response
     {
-        $cat = DB::row('SELECT * FROM categories WHERE id = ?', [$id]);
+        $cat = DB::row('SELECT * FROM categories WHERE id = ? AND is_custom = 0', [$id]);
         $this->notFoundUnless($cat);
         if (DB::value('SELECT 1 FROM cards WHERE category_id = ? LIMIT 1', [$id]) || DB::value('SELECT 1 FROM sales WHERE category_id = ? LIMIT 1', [$id])) {
             return $this->backWithErrors($request, ['id' => 'لا يمكن حذف باقة تحتوي على كروت أو مبيعات. يمكنك إيقافها بدلاً من ذلك.'], '/categories');
@@ -167,7 +175,7 @@ final class CategoryController extends Controller
 
     public function sync(Request $request, int $id): Response
     {
-        $cat = DB::row('SELECT * FROM categories WHERE id = ?', [$id]);
+        $cat = DB::row('SELECT * FROM categories WHERE id = ? AND is_custom = 0', [$id]);
         $this->notFoundUnless($cat);
         $job = JobRunner::create('profile_sync', 'مزامنة ملف سرعة الباقة ' . $cat['name'], ['kind' => 'category', 'id' => $id], 0, Auth::id());
         return redirect('/jobs/' . $job);

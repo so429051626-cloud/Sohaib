@@ -1,12 +1,13 @@
 <?php
 /**
- * شريط أقسام الكروت: القائمة، الاستيراد، الطباعة، الإعدادات — يظهر أعلى صفحات القسم.
+ * شريط أقسام الكروت: القائمة، الحسابات الخاصة، الاستيراد، الطباعة، الإعدادات — يظهر أعلى صفحات القسم.
  * كل قسم يظهر لمن يملك صلاحيته فقط.
  */
 use App\Core\Request;
 
 $items = [
     ['list',     'الكروت',         '/cards',          'ticket',   can('cards.view')],
+    ['accounts', 'الحسابات الخاصة', '/cards/accounts', 'user-plus', can('cards.accounts')],
     ['import',   'استيراد كروت',   '/cards/import',   'file-up',  can('cards.import')],
     ['print',    'طباعة الكروت',   '/print',          'printer',  can('cards.print') || can('print.templates')],
     ['settings', 'إعدادات الكروت', '/cards/settings', 'settings', can('settings.manage')],
@@ -20,6 +21,7 @@ $current = match (true) {
     $path === '/cards/import' || str_starts_with($path, '/cards/import/') => 'import',
     $path === '/print' || str_starts_with($path, '/print/') => 'print',
     $path === '/cards/settings' => 'settings',
+    $path === '/cards/accounts' || str_starts_with($path, '/cards/accounts/') => 'accounts',
     default => 'list',
 };
 ?>

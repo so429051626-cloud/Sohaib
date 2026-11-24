@@ -114,7 +114,7 @@ final class CardImporter
     public static function commit(string $token, array $o, ?int $employeeId): array
     {
         $rows = self::load($token);
-        $category = DB::row('SELECT * FROM categories WHERE id = ?', [(int) $o['category_id']]);
+        $category = DB::row('SELECT * FROM categories WHERE id = ? AND is_custom = 0', [(int) $o['category_id']]);
         if (!$category) {
             throw new RuntimeException('اختر باقة صالحة.');
         }

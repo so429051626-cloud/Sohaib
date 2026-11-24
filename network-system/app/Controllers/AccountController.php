@@ -117,7 +117,8 @@ final class AccountController extends Controller
 
         $update = [
             'name' => $data['name'], 'phone' => $data['phone'], 'email' => $data['email'],
-            'theme' => $data['theme'], 'updated_at' => now(),
+            // الوضع فاتح ما لم يُختر الداكن: «حسب الجهاز» لم يعد خياراً
+            'theme' => $data['theme'] === 'dark' ? 'dark' : 'light', 'updated_at' => now(),
         ];
 
         $newPass = (string) $request->input('new_password', '');
@@ -170,7 +171,7 @@ final class AccountController extends Controller
         if (!in_array($theme, ['system', 'light', 'dark'], true)) {
             return json_response(['ok' => false, 'message' => 'قيمة غير صالحة.'], 422);
         }
-        DB::update('employees', ['theme' => $theme], 'id = ?', [Auth::id()]);
+        DB::update('employees', ['theme' => $theme === 'dark' ? 'dark' : 'light'], 'id = ?', [Auth::id()]);
         return json_response(['ok' => true]);
     }
 

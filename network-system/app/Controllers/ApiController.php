@@ -25,7 +25,9 @@ final class ApiController extends Controller
             $request->str('code'),
             $request->str('password'),
             $request->str('mac'),
-            $request->str('ip')
+            $request->str('ip'),
+            $request->str('raw_code') ?: null,
+            $request->str('raw_password') ?: null
         );
         return json_response($result);
     }
@@ -36,6 +38,35 @@ final class ApiController extends Controller
             return json_response(['ok' => false, 'message' => 'طلبات كثيرة.'], 429);
         }
         return json_response(PortalService::status($request->str('key'), $request->str('u'), $request->str('mac')));
+    }
+
+    /** إعلانات صفحة الهوتسبوت لنقطة الاتصال (عروض الشبكة وإعلانات المحلات) */
+    public function hotspotAds(Request $request): Response
+    {
+        $router = PortalService::routerByKey($request->str('key'));
+        if (!$router) {
+            return json_response(['ok' => false, 'ads' => []], 404);
+        }
+        if (!Throttle::rate('hs:ads:' . $request->ip(), 120, 60)) {
+            return json_response(['ok' => false, 'ads' => []], 429);
+        }
+        $ads = \App\Services\HotspotAds::forRouter($router);
+        \App\Services\HotspotAds::recordViews($ads, (int) $router['id'], $request->ip() . '|' . (string) normalize_mac($request->str('mac')));
+        return json_response([
+            'ok' => true, 'interval' => \App\Services\HotspotAds::interval(),
+            'ads' => array_map([\App\Services\HotspotAds::class, 'payload'], $ads),
+        ])->withHeader('Cache-Control', 'no-store');
+    }
+
+    /** ضغطة على إعلان (تُرسلها المكتبة قبل فتح رابطه أو الاتصال برقمه) */
+    public function hotspotAdClick(Request $request, int $id): Response
+    {
+        $router = PortalService::routerByKey($request->str('key'));
+        if (!$router) {
+            return json_response(['ok' => false], 404);
+        }
+        $ok = \App\Services\HotspotAds::recordClick($id, (int) $router['id'], $request->ip() . '|' . (string) normalize_mac($request->str('mac')));
+        return json_response(['ok' => $ok]);
     }
 
     public function hotspotInfo(Request $request): Response

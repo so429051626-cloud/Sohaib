@@ -188,14 +188,22 @@ final class Tenant
         }
     }
 
-    /** الحد الشهري لرسائل الذكاء الاصطناعي: حد الحساب ثم حد باقته، وصفر عند غيابهما */
+    /** الحد الشهري لرسائل الذكاء الاصطناعي: حد الحساب، ثم حد باقته، ثم الحد الافتراضي للمنصة (50 ما لم يغيّره المسؤول) */
     public static function aiLimit(array $tenant): int
     {
         if (isset($tenant['ai_limit']) && $tenant['ai_limit'] !== null && $tenant['ai_limit'] !== '') {
             return (int) $tenant['ai_limit'];
         }
         $plan = Platform::plan(isset($tenant['plan_id']) ? (int) $tenant['plan_id'] : null);
-        return $plan && $plan['ai_messages'] !== null ? (int) $plan['ai_messages'] : 0;
+        if ($plan && $plan['ai_messages'] !== null) {
+            return (int) $plan['ai_messages'];
+        }
+        return self::aiDefaultLimit();
+    }
+
+    public static function aiDefaultLimit(): int
+    {
+        return max(0, (int) Platform::setting('ai.default_limit'));
     }
 
     /** الأيام المتبقية من التجربة أو الاشتراك (null = مفتوح) */

@@ -39,6 +39,16 @@ final class Settings
         'hotspot.fallback'            => '1',
         'hotspot.timeout'             => '8',
         'hotspot.allow_unsold'        => '1',
+        'hotspot.local_users'         => '1',
+        'hotspot.ads_interval'        => '6',
+        // كشف الاستهلاك الزائد وتحديد السرعة
+        'usage.heavy_enabled'         => '1',
+        'usage.heavy_mbps'            => '20',
+        'usage.heavy_minutes'         => '3',
+        'usage.cap_down'              => '2M',
+        'usage.cap_up'                => '1M',
+        'usage.cap_minutes'           => '60',
+        'usage.auto_cap'              => '0',
         // المزامنة مع أجهزة MikroTik
         'sync.interval'               => '1',
         'sync.leases_interval'        => '5',

@@ -16,6 +16,7 @@ use App\Controllers\AuthController;
 use App\Controllers\CableController;
 use App\Controllers\BatchController;
 use App\Controllers\BrandController;
+use App\Controllers\CardAccountController;
 use App\Controllers\CardController;
 use App\Controllers\CardMonitorController;
 use App\Controllers\CategoryController;
@@ -24,6 +25,7 @@ use App\Controllers\DashboardController;
 use App\Controllers\DeviceController;
 use App\Controllers\DistributorController;
 use App\Controllers\EmployeeController;
+use App\Controllers\HotspotAdController;
 use App\Controllers\HotspotController;
 use App\Controllers\InventoryController;
 use App\Controllers\InstallController;
@@ -31,6 +33,7 @@ use App\Controllers\JobController;
 use App\Controllers\PlanController;
 use App\Controllers\PrintController;
 use App\Controllers\ReportController;
+use App\Controllers\RouterConnectController;
 use App\Controllers\RouterController;
 use App\Controllers\SalesController;
 use App\Controllers\SearchController;
@@ -42,6 +45,7 @@ use App\Controllers\SubscriberController;
 use App\Controllers\TelegramController;
 use App\Controllers\TicketController;
 use App\Controllers\TunnelController;
+use App\Controllers\UsageController;
 use App\Core\Router;
 
 return static function (Router $r): void {
@@ -53,9 +57,13 @@ return static function (Router $r): void {
     $r->post('/api/hotspot/login', [ApiController::class, 'hotspotLogin'], $public);
     $r->get('/api/hotspot/status', [ApiController::class, 'hotspotStatus'], $public);
     $r->get('/api/hotspot/info', [ApiController::class, 'hotspotInfo'], $public);
+    $r->get('/api/hotspot/ads', [ApiController::class, 'hotspotAds'], $public);
+    $r->post('/api/hotspot/ads/{id}/click', [ApiController::class, 'hotspotAdClick'], $public);
     $r->get('/api/router/event', [ApiController::class, 'routerEvent'], $public);
     $r->get('/hotspot/sdk/config/{key:[a-f0-9]{32}}.js', [ApiController::class, 'sdkConfig'], $public);
     $r->get('/hotspot/sdk/sohaibnet.js', [ApiController::class, 'sdkFile'], $public);
+    // سكربت ربط جهاز MikroTik يجلبه الجهاز بنفسه (رمز سري صالح 24 ساعة)
+    $r->get('/routers/setup/{token:[a-f0-9]{40}}.rsc', [RouterConnectController::class, 'fetch'], ['auth' => false, 'csrf' => false]);
     $r->get('/cron', [ApiController::class, 'cron'], ['auth' => false, 'csrf' => false]);
     if (!\App\Core\Platform::enabled()) {
         $r->get('/health', [ApiController::class, 'health'], ['auth' => false, 'csrf' => false]);
@@ -188,6 +196,12 @@ return static function (Router $r): void {
     // ------------------------------------------------------------------
     $r->get('/routers', [RouterController::class, 'index'], ['perm' => 'routers.view']);
     $r->get('/routers/create', [RouterController::class, 'create'], ['perm' => 'routers.manage']);
+    $r->get('/routers/connect', [RouterConnectController::class, 'create'], ['perm' => 'routers.manage']);
+    $r->post('/routers/connect', [RouterConnectController::class, 'store'], ['perm' => 'routers.manage']);
+    $r->get('/routers/connect/{id}', [RouterConnectController::class, 'show'], ['perm' => 'routers.manage']);
+    $r->get('/routers/connect/{id}/status', [RouterConnectController::class, 'status'], ['perm' => 'routers.manage']);
+    $r->post('/routers/connect/{id}/token', [RouterConnectController::class, 'token'], ['perm' => 'routers.manage']);
+    $r->get('/routers/connect/{id}/script', [RouterConnectController::class, 'download'], ['perm' => 'routers.manage']);
     $r->post('/routers', [RouterController::class, 'store'], ['perm' => 'routers.manage']);
     $r->post('/routers/test', [RouterController::class, 'test'], ['perm' => 'routers.manage']);
     $r->get('/routers/{id}', [RouterController::class, 'show'], ['perm' => 'routers.view']);
@@ -203,6 +217,10 @@ return static function (Router $r): void {
     $r->post('/routers/{id}/ping', [RouterController::class, 'ping'], ['perm' => 'routers.control']);
     $r->post('/routers/{id}/diagnose', [RouterController::class, 'diagnose'], ['perm' => 'routers.view']);
     // فحص الكابلات
+    $r->get('/usage', [UsageController::class, 'index'], ['perm' => 'usage.view']);
+    $r->post('/usage/cap', [UsageController::class, 'cap'], ['perm' => 'usage.limit']);
+    $r->post('/usage/uncap', [UsageController::class, 'uncap'], ['perm' => 'usage.limit']);
+    $r->post('/usage/settings', [UsageController::class, 'settings'], ['perm' => 'settings.manage']);
     $r->get('/cables', [CableController::class, 'index'], ['perm' => 'routers.cables']);
     $r->get('/cables/ports', [CableController::class, 'ports'], ['perm' => 'routers.cables']);
     $r->post('/cables/test', [CableController::class, 'test'], ['perm' => 'routers.cables']);
@@ -301,6 +319,13 @@ return static function (Router $r): void {
     $r->post('/cards/import/{token:[a-f0-9]{24}}', [CardController::class, 'importCommit'], ['perm' => 'cards.import']);
     $r->post('/cards/bulk', [CardController::class, 'bulk'], ['perm' => 'cards.view']);
     // متابعة الكروت: النشطة، والمنتهية، والمُدخلة خطأ في الهوتسبوت
+    $r->get('/cards/accounts', [CardAccountController::class, 'index'], ['perm' => 'cards.accounts']);
+    $r->get('/cards/accounts/create', [CardAccountController::class, 'create'], ['perm' => 'cards.accounts']);
+    $r->post('/cards/accounts', [CardAccountController::class, 'store'], ['perm' => 'cards.accounts']);
+    $r->get('/cards/accounts/{id}/edit', [CardAccountController::class, 'edit'], ['perm' => 'cards.accounts']);
+    $r->post('/cards/accounts/{id}', [CardAccountController::class, 'update'], ['perm' => 'cards.accounts']);
+    $r->post('/cards/accounts/{id}/state', [CardAccountController::class, 'state'], ['perm' => 'cards.accounts']);
+    $r->post('/cards/accounts/{id}/delete', [CardAccountController::class, 'destroy'], ['perm' => 'cards.accounts']);
     $r->get('/cards/monitor', [CardMonitorController::class, 'index'], ['perm' => 'cards.monitor']);
     $r->post('/cards/monitor/delete', [CardMonitorController::class, 'delete'], ['perm' => 'cards.monitor']);
     $r->get('/cards/{id}', [CardController::class, 'show'], ['perm' => 'cards.view']);
@@ -384,6 +409,14 @@ return static function (Router $r): void {
     $r->post('/hotspot/deploy', [HotspotController::class, 'deploy'], ['perm' => 'hotspot.manage']);
     $r->get('/hotspot/download/{id}', [HotspotController::class, 'download'], ['perm' => 'hotspot.manage']);
     $r->get('/hotspot/log', [HotspotController::class, 'log'], ['perm' => 'hotspot.log']);
+    $r->get('/hotspot/ads', [HotspotAdController::class, 'index'], ['perm' => 'hotspot.ads']);
+    $r->get('/hotspot/ads/create', [HotspotAdController::class, 'create'], ['perm' => 'hotspot.ads']);
+    $r->post('/hotspot/ads', [HotspotAdController::class, 'store'], ['perm' => 'hotspot.ads']);
+    $r->post('/hotspot/ads/settings', [HotspotAdController::class, 'settings'], ['perm' => 'hotspot.ads']);
+    $r->get('/hotspot/ads/{id}/edit', [HotspotAdController::class, 'edit'], ['perm' => 'hotspot.ads']);
+    $r->post('/hotspot/ads/{id}', [HotspotAdController::class, 'update'], ['perm' => 'hotspot.ads']);
+    $r->post('/hotspot/ads/{id}/toggle', [HotspotAdController::class, 'toggle'], ['perm' => 'hotspot.ads']);
+    $r->post('/hotspot/ads/{id}/delete', [HotspotAdController::class, 'destroy'], ['perm' => 'hotspot.ads']);
 
     // ------------------------------------------------------------------
     // التقارير

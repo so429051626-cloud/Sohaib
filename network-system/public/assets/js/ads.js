@@ -1,0 +1,40 @@
+/* نموذج إعلان صفحة الهوتسبوت: معاينة حية كما يظهر على الهاتف */
+(function (document) {
+  'use strict';
+  var form = document.querySelector('[data-ad-form]');
+  var box = document.querySelector('[data-ad-preview]');
+  if (!form || !box) { return; }
+
+  function part(name) { return box.querySelector('[data-p="' + name + '"]'); }
+
+  function sync() {
+    var title = form.elements.title.value.trim();
+    part('title').textContent = title || 'عنوان الإعلان';
+    part('advertiser').textContent = form.elements.advertiser.value.trim();
+    part('body').textContent = form.elements.body.value.trim();
+    part('phone').hidden = form.elements.phone.value.trim() === '';
+    part('link').hidden = form.elements.link.value.trim() === '';
+  }
+
+  form.addEventListener('input', function (e) {
+    if (e.target.hasAttribute('data-preview') && e.target.type !== 'file') { sync(); }
+  });
+
+  var file = form.elements.image;
+  var imgWrap = box.querySelector('.ad-preview-img');
+  var img = imgWrap ? imgWrap.querySelector('img') : null;
+  if (file && img) {
+    file.addEventListener('change', function () {
+      var f = file.files && file.files[0];
+      if (!f || !/^image\/(png|jpeg|webp)$/.test(f.type)) { return; }
+      var reader = new FileReader();
+      reader.onload = function () { img.src = reader.result; imgWrap.hidden = false; };
+      reader.readAsDataURL(f);
+    });
+  }
+  var remove = form.elements.remove_image;
+  if (remove && imgWrap) {
+    remove.addEventListener('change', function () { imgWrap.hidden = remove.checked; });
+  }
+  sync();
+})(document);

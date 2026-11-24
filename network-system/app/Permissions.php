@@ -32,6 +32,8 @@ final class Permissions
             'sessions.disconnect'    => 'فصل المتصلين',
             'devices.view'           => 'عرض دليل الأجهزة',
             'devices.block'          => 'حظر الأجهزة وإلغاء حظرها',
+            'usage.view'             => 'عرض الاستهلاك الزائد وأكثر المستهلكين',
+            'usage.limit'            => 'تحديد سرعة المستهلكين ورفع التحديد',
         ],
         'الكروت' => [
             'categories.view'        => 'عرض الباقات',
@@ -46,6 +48,7 @@ final class Permissions
             'cards.manage'           => 'تعديل الكروت (إيقاف، تمديد، نقل، رفع لجهاز MikroTik)',
             'cards.delete'           => 'حذف الكروت والدفعات',
             'cards.print'            => 'طباعة الكروت',
+            'cards.accounts'         => 'الحسابات الخاصة (إنشاء حسابات هوتسبوت باسم مستخدم وكلمة مرور وسرعة ومدة خاصة، وتعديلها وحذفها)',
             'print.templates'        => 'إدارة قوالب الطباعة',
         ],
         'فحص الكرت' => [
@@ -87,6 +90,7 @@ final class Permissions
         'ربط الهوتسبوت' => [
             'hotspot.manage'         => 'إدارة ربط الهوتسبوت ونشر الملفات',
             'hotspot.log'            => 'عرض سجل محاولات الدخول',
+            'hotspot.ads'            => 'إعلانات صفحة الهوتسبوت (عروض الشبكة وإعلانات المحلات)',
         ],
         'التقارير' => [
             'reports.view'           => 'عرض التقارير التشغيلية',
@@ -141,7 +145,7 @@ final class Permissions
             'label' => 'فني شبكة',
             'permissions' => [
                 'dashboard.view', 'routers.view', 'routers.control', 'routers.reboot', 'routers.backup', 'routers.cables',
-                'sessions.view', 'sessions.disconnect', 'devices.view', 'devices.block',
+                'sessions.view', 'sessions.disconnect', 'devices.view', 'devices.block', 'usage.view', 'usage.limit',
                 'categories.view', 'cards.view', 'cards.monitor', 'check.use', 'check.actions',
                 'subscribers.view', 'subscribers.status', 'plans.view', 'hotspot.manage', 'hotspot.log',
                 'reports.view', 'alerts.view', 'jobs.view', 'map.view', 'map.manage', 'inventory.view', 'inventory.manage',
@@ -159,7 +163,7 @@ final class Permissions
         'viewer' => [
             'label' => 'مراقب',
             'permissions' => [
-                'dashboard.view', 'routers.view', 'sessions.view', 'devices.view', 'categories.view',
+                'dashboard.view', 'routers.view', 'sessions.view', 'devices.view', 'usage.view', 'categories.view',
                 'cards.view', 'check.use', 'subscribers.view', 'plans.view', 'sales.view',
                 'distributors.view', 'reports.view', 'alerts.view', 'map.view', 'inventory.view', 'power.view', 'outages.view',
             ],

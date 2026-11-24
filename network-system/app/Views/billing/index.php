@@ -3,6 +3,7 @@
  * @var App\Core\View $v @var array $t @var string $phase @var ?int $phaseEnds @var ?int $daysLeft @var ?array $plan
  * @var array $plans @var array $banks @var array $requests @var array $payments @var string $currency
  */
+use App\Core\Platform;
 use App\Platform\Billing;
 
 $v->title = 'الاشتراك';
@@ -15,6 +16,10 @@ $phaseInfo = [
 ][$phase];
 $pending = array_filter($requests, static fn ($r) => $r['status'] === 'pending');
 $selected = (int) old('plan_id', $plan['id'] ?? ($plans[0]['id'] ?? 0));
+// التواصل عبر واتساب لتفعيل الاشتراك أو تجديده (رقم المنصة من إعدادات المسؤول)
+$waNumber = trim(Platform::setting('platform.whatsapp'));
+$waIntl = (string) preg_replace('/\D/', '', latin_digits(Platform::setting('platform.whatsapp_intl')));
+$waLink = $waIntl !== '' ? Platform::whatsappLink('مرحباً، أريد تفعيل اشتراك حساب ' . $t['name'] . ' (' . $t['slug'] . ')' . ($plan ? ' — الباقة: ' . $plan['name'] : '')) : '';
 ?>
 <div class="sub-hero panel is-<?= e($phase) ?>">
   <div class="sub-hero-main">
@@ -31,6 +36,19 @@ $selected = (int) old('plan_id', $plan['id'] ?? ($plans[0]['id'] ?? 0));
   </div>
   <?php if ($pending): ?><span class="badge badge-warning"><?= icon('hourglass', 'icon-sm') ?>طلب بانتظار الموافقة</span><?php endif; ?>
 </div>
+
+<?php if ($waLink !== ''): ?>
+<div class="panel billing-contact">
+  <div class="billing-contact-main">
+    <span class="billing-contact-icon"><?= icon('message-circle') ?></span>
+    <div>
+      <div class="billing-contact-title">فعّل خطك عبر واتساب</div>
+      <div class="billing-contact-sub">تواصل معنا على واتساب<?php if ($waNumber !== ''): ?> <b><?= ltr(e($waNumber)) ?></b><?php endif; ?> لتفعيل اشتراكك أو تجديده مباشرة</div>
+    </div>
+  </div>
+  <a class="btn btn-whatsapp" href="<?= e($waLink) ?>" target="_blank" rel="noopener" data-no-loading><?= icon('message-circle') ?>تواصل عبر واتساب</a>
+</div>
+<?php endif; ?>
 
 <?php if ($plans): ?>
 <div class="plan-grid mb-3">

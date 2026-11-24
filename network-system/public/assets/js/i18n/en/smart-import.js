@@ -15,7 +15,7 @@
   var status = $('[data-si-status]'), msg = $('[data-si-msg]');
   var files = $('[data-si-files]'), thumbs = $('[data-si-thumbs]');
   var images = [];
-  var notes = []; // الملاحظات لا تُعرض in الجدول وتُحفظ كما وردت
+  var notes = []; // Notes لا تُعرض in الجدول وتُحفظ كما وردت
 
   function say(el, ok, text) { el.className = (el === status ? 'slug-status ' : 'panel-body si-msg ') + (ok ? 'is-ok' : 'is-bad'); el.textContent = text || ''; el.hidden = !text; }
 

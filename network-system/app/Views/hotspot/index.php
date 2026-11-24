@@ -10,6 +10,9 @@ if (can('hotspot.log')) {
 $sdkUrl = $panel !== '' ? rtrim($panel, '/') . '/hotspot/sdk/' . HotspotSdk::SDK_FILE : '';
 
 $loginSnippet = <<<'HTML'
+<!-- login.html — مكان إعلانات الصفحة (اختياري، تُدار من «إعلانات الصفحة») -->
+<div id="sn-ads"></div>
+
 <!-- login.html — قبل </body> -->
 <script>
   window.SN_MT = {
@@ -165,6 +168,7 @@ HTML;
           <dt>تحديث المكتبة</dt><dd><?= e($sdkVersion) ?></dd>
           <dt>مهلة الاتصال</dt><dd><?= num(max(2, (int) \App\Core\Settings::get('hotspot.timeout', 8))) ?> ثانية</dd>
           <dt>عند تعذّر الوصول</dt><dd><?= \App\Core\Settings::bool('hotspot.fallback') ? 'دخول مباشر عبر جهاز MikroTik' : 'رفض الدخول' ?></dd>
+          <dt>مستخدمو MikroTik المحليون</dt><dd><?= \App\Core\Settings::bool('hotspot.local_users') ? 'يدخلون مباشرة عبر الجهاز' : 'مرفوضون' ?></dd>
         </dl>
         <?php if (can('settings.manage')): ?><a class="btn btn-block mt-2" href="<?= e(url('/settings#hotspot')) ?>"><?= icon('settings') ?>إعدادات الهوتسبوت</a><?php endif; ?>
       </div>
@@ -177,6 +181,8 @@ HTML;
             <tr><td class="mono text-sm">SNHotspot.login(options)</td></tr>
             <tr><td class="mono text-sm">SNHotspot.status(options)</td></tr>
             <tr><td class="mono text-sm">SNHotspot.info(callback)</td></tr>
+            <tr><td class="mono text-sm">SNHotspot.renderAds('#sn-ads')</td></tr>
+            <tr><td class="mono text-sm">SNHotspot.ads(callback)</td></tr>
             <tr><td class="mono text-sm">SNHotspot.submitLogin(user, pass)</td></tr>
             <tr><td class="mono text-sm">SNHotspot.normalize(code)</td></tr>
             <tr><td class="mono text-sm">SNHotspot.formatBytes(bytes)</td></tr>

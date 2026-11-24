@@ -29,23 +29,17 @@
   }
 
   // ------------------------------------------------------------------------
-  // Mode الفاتح/الداكن
+  // Mode الفاتح/الداكن: Light دائماً ما لم يختر User الداكن, and no يتبع إعداد Device
   // ------------------------------------------------------------------------
-  var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
   function applyTheme(pref) {
-    var t = pref === 'system' || !pref ? (mq && mq.matches ? 'dark' : 'light') : pref;
+    var t = pref === 'dark' ? 'dark' : 'light';
     root.setAttribute('data-theme', t);
-    root.setAttribute('data-theme-pref', pref || 'system');
+    root.setAttribute('data-theme-pref', t);
     doc.dispatchEvent(new CustomEvent('themechange', { detail: { theme: t } }));
-  }
-  if (mq && mq.addEventListener) {
-    mq.addEventListener('change', function () {
-      if ((root.getAttribute('data-theme-pref') || 'system') === 'system') { applyTheme('system'); }
-    });
   }
   on(doc, 'click', '[data-theme-set]', function (e, el) {
     e.preventDefault();
-    var pref = el.getAttribute('data-theme-set');
+    var pref = el.getAttribute('data-theme-set') === 'dark' ? 'dark' : 'light';
     applyTheme(pref);
     try { localStorage.setItem('sn-theme', pref); } catch (err) {}
     if (doc.querySelector('meta[name="auth"]')) { api(base + '/account/theme', { method: 'POST', data: { theme: pref }, silent: true }).catch(function () {}); }
@@ -788,16 +782,16 @@
   window.addEventListener('pageshow', stopProgress);
   window.addEventListener('pagehide', function () { setTimeout(stopProgress, 4000); });
 
-  // panel المفاتيح on Phone: ارتفاعها in --kb ليبقى شريط الحقوق السفلي فوقها
-  // لا تظهر panel المفاتيح إلا مع Field كتابة Active: أي تغيّر Last in ارتفاع Screen (شريط Address, التكبير) لا يحرّك الشريط.
-  // والحقل الذي يُكتب فيه يبقى ظاهراً فوق الشريط لا behind it.
+  // panel المفاتيح on Phone: شريط الحقوق السفلي يختفي ما دامت ظاهرة, ويعود عند إغلاقها.
+  // الشريط Static أسفل Screen, ورفعه فوق panel المفاتيح مع Every تمرير يجعله يتحرك مع Page then يرجع;
+  // الإخفاء لا يتبع التمرير إطلاقاً (لا يُقرأ حدث التمرير), فلا يتحرك شيء أثناء الكتابة والتمرير.
   (function () {
-    var vv = window.visualViewport;
     var bar = doc.querySelector('.app-footer');
-    if (!vv || !bar) { return; }
-    // تبدأ from صفر (Value CSS Default): لا يُكتب المتغير on Page إلا عند ظهور panel المفاتيح فعلاً,
-    // فكتابته on جذر Page تعيد Account أنماط Every عناصرها
-    var last = 0, queued = false;
+    if (!bar) { return; }
+    var root = doc.documentElement, vv = window.visualViewport;
+    var touch = !!(window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
+    // open: الشريط مخفي · seen: ظهرت panel المفاتيح لهذا الحقل · armed: ركّز User on Field كتابة
+    var open = false, seen = false, armed = false, base = 0, lastW = 0, queued = false;
     function typing() {
       var a = doc.activeElement;
       if (!a || a === doc.body) { return null; }
@@ -806,27 +800,31 @@
       if (a.tagName !== 'INPUT' || a.readOnly) { return null; }
       return /^(checkbox|radio|button|submit|reset|range|color|file|image|hidden)$/i.test(a.type) ? null : a;
     }
+    // ارتفاع Area الظاهرة وعرضها بمقياس Screen: لا يتغيران بالتكبير, and Height ينقص بظهور panel المفاتيح
+    function visibleHeight() { return vv ? vv.height * (vv.scale || 1) : window.innerHeight; }
+    function visibleWidth() { return vv ? vv.width * (vv.scale || 1) : window.innerWidth; }
+    function set(hide) {
+      if (hide !== open) { open = hide; root.classList.toggle('kb-open', hide); }
+    }
     function update() {
       queued = false;
-      var field = typing(), kb = 0;
-      if (field && Math.abs((vv.scale || 1) - 1) < 0.01) {
-        kb = Math.round(window.innerHeight - vv.height - vv.offsetTop);
-        if (kb < 80) { kb = 0; }
+      var field = typing(), h = visibleHeight(), w = visibleWidth();
+      if (Math.abs(w - lastW) > 40) {
+        // أول قراءة or تدوير Screen: ارتفاع مرجعي New, وتبقى حالة الشريط كما هي until تتضح
+        lastW = w; base = h; seen = false;
+        if (!field) { armed = false; set(false); }
+        return;
       }
-      if (kb !== last) {
-        last = kb;
-        doc.documentElement.style.setProperty('--kb', kb + 'px');
-      }
-      if (kb > 0) {
-        var r = field.getBoundingClientRect();
-        var barTop = window.innerHeight - kb - bar.offsetHeight;
-        if (r.bottom > barTop - 8 && r.top > 0) { window.scrollBy({ top: Math.ceil(r.bottom - barTop + 12), behavior: 'instant' }); }
-      }
+      if (h > base) { base = h; }
+      if (!field) { armed = false; seen = false; set(false); return; }
+      if (base - h >= 120) { seen = true; set(true); return; }
+      // Field Active and panel المفاتيح غير ظاهرة yet: in Devices اللمسية تظهر yet لحظة from التركيز فيُخفى الشريط فوراً,
+      // ويعود إن أُغلقت panel المفاتيح مع بقاء الحقل نشطاً (زر الرجوع in Android)
+      set(touch && armed && !seen);
     }
     function schedule() { if (!queued) { queued = true; requestAnimationFrame(update); } }
-    vv.addEventListener('resize', schedule);
-    vv.addEventListener('scroll', schedule);
-    doc.addEventListener('focusin', schedule);
+    if (vv) { vv.addEventListener('resize', schedule); } else { window.addEventListener('resize', schedule); }
+    doc.addEventListener('focusin', function () { if (typing()) { armed = true; seen = false; } schedule(); });
     doc.addEventListener('focusout', function () { setTimeout(schedule, 0); });
     update();
   })();

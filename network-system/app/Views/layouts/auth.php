@@ -21,10 +21,10 @@ $flash = Config::installed() || PHP_SAPI !== 'cli' ? (Session::pull('_flash', []
 <?= $v->partial('rum', ['area' => 'login']) ?>
 <script>
 (function () {
-  var p = 'system';
-  try { p = localStorage.getItem('sn-theme') || 'system'; } catch (e) {}
-  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  document.documentElement.setAttribute('data-theme', p === 'system' ? (dark ? 'dark' : 'light') : p);
+  // الوضع فاتح دائماً ما لم يُختر الداكن يدوياً (لا يتبع إعداد الجهاز)
+  var p = 'light';
+  try { p = localStorage.getItem('sn-theme') === 'dark' ? 'dark' : 'light'; } catch (e) {}
+  document.documentElement.setAttribute('data-theme', p);
   document.documentElement.setAttribute('data-theme-pref', p);
 })();
 </script>

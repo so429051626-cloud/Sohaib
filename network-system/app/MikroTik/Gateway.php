@@ -366,6 +366,16 @@ final class Gateway
         }
     }
 
+    public function removeHotspotProfile(string $name): bool
+    {
+        $existing = $this->client()->print('/ip/hotspot/user/profile', ['name' => $name], ['.id']);
+        if (!$existing) {
+            return false;
+        }
+        $this->client()->remove('/ip/hotspot/user/profile', array_column($existing, '.id'));
+        return true;
+    }
+
     public function ipBindings(): array
     {
         return $this->client()->print('/ip/hotspot/ip-binding');

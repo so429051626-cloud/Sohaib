@@ -29,7 +29,6 @@ $tools = static function (string $cls) {
         <div class="dropdown-menu">
           <button type="button" class="dropdown-item" data-theme-set="light"><?= icon('sun') ?>فاتح</button>
           <button type="button" class="dropdown-item" data-theme-set="dark"><?= icon('moon') ?>داكن</button>
-          <button type="button" class="dropdown-item" data-theme-set="system"><?= icon('monitor') ?>حسب الجهاز</button>
         </div>
       </div>
     </div>
@@ -48,10 +47,10 @@ $tools = static function (string $cls) {
 <?= $v->partial('rum', ['area' => 'login']) ?>
 <script>
 (function () {
-  var p = 'system';
-  try { p = localStorage.getItem('sn-theme') || 'system'; } catch (e) {}
-  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  document.documentElement.setAttribute('data-theme', p === 'system' ? (dark ? 'dark' : 'light') : p);
+  // الوضع فاتح دائماً ما لم يُختر الداكن يدوياً (لا يتبع إعداد الجهاز)
+  var p = 'light';
+  try { p = localStorage.getItem('sn-theme') === 'dark' ? 'dark' : 'light'; } catch (e) {}
+  document.documentElement.setAttribute('data-theme', p);
   document.documentElement.setAttribute('data-theme-pref', p);
 })();
 </script>

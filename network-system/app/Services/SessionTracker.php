@@ -38,6 +38,8 @@ final class SessionTracker
             $open[$s['username'] . '|' . ($s['mac'] ?? '')] = $s;
         }
         $owners = self::owners(array_column($actives, 'user'));
+        // كشف الاستهلاك الزائد: حد سرعة التنزيل (بت/ثانية)، صفر = موقوف
+        $heavy = UsageGuard::threshold();
         $seen = [];
         $opened = 0;
         $cards = [];
@@ -68,7 +70,7 @@ final class SessionTracker
                     DB::update('sessions', ['stopped_at' => $s['updated_at'], 'stop_reason' => 'reconnect'], 'id = ?', [$s['id']]);
                     unset($open[$key]);
                 } else {
-                    DB::update('sessions', [
+                    $update = [
                         'ip'         => $a['address'] ?: $s['ip'],
                         'active_ref' => $a['id'] ?? $s['active_ref'],
                         'uptime'     => $uptime,
@@ -77,7 +79,22 @@ final class SessionTracker
                         'updated_at' => $nowStr,
                         'card_id'    => $cardId ?? $s['card_id'],
                         'subscriber_id' => $subId ?? $s['subscriber_id'],
-                    ], 'id = ?', [$s['id']]);
+                    ];
+                    // السرعة الحالية من فرق العدّادات منذ آخر مزامنة (bytes_out = ما نزل إلى المستخدم)
+                    $elapsed = $now - (int) strtotime((string) $s['updated_at']);
+                    $dOut = (int) $a['bytes_out'] - (int) $s['bytes_out'];
+                    $dIn = (int) $a['bytes_in'] - (int) $s['bytes_in'];
+                    if ($elapsed >= 15 && $elapsed <= 900 && $dOut >= 0 && $dIn >= 0) {
+                        $update['rate_down'] = (int) round($dOut * 8 / $elapsed);
+                        $update['rate_up'] = (int) round($dIn * 8 / $elapsed);
+                        if ($heavy > 0 && $update['rate_down'] >= $heavy) {
+                            $update['heavy_since'] = $s['heavy_since'] ?? $s['updated_at'];
+                        } else {
+                            $update['heavy_since'] = null;
+                            $update['heavy_alerted'] = 0;
+                        }
+                    }
+                    DB::update('sessions', $update, 'id = ?', [$s['id']]);
                     continue;
                 }
             }

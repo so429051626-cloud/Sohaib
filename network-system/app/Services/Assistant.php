@@ -90,7 +90,7 @@ final class Assistant
                 'منتهية' => (int) $r['ended'], 'حد_التنبيه_للمخزون' => $r['low_stock'] !== null ? (int) $r['low_stock'] : null,
             ], static fn ($v) => $v !== null), DB::rows("SELECT c.name, c.price, c.low_stock,
                 SUM(k.status = 'new') AS fresh, SUM(k.status = 'sold') AS sold, SUM(k.status = 'active') AS active, SUM(k.status IN ('expired', 'depleted')) AS ended
-                FROM categories c LEFT JOIN cards k ON k.category_id = c.id WHERE c.is_active = 1 GROUP BY c.id, c.name, c.price, c.low_stock, c.sort ORDER BY c.sort, c.price LIMIT 40"));
+                FROM categories c LEFT JOIN cards k ON k.category_id = c.id WHERE c.is_active = 1 AND c.is_custom = 0 GROUP BY c.id, c.name, c.price, c.low_stock, c.sort ORDER BY c.sort, c.price LIMIT 40"));
         }
 
         if ($can('sales.view')) {

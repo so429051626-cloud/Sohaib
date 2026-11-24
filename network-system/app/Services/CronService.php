@@ -61,6 +61,8 @@ final class CronService
             }
             self::guard(static fn () => Enforcer::expireDueCards());
             self::guard(static fn () => Enforcer::subscribers());
+            // رفع تحديد السرعة الذي انتهت مدته
+            self::guard(static fn () => UsageGuard::expireCaps());
             if (self::every('quota', 300)) {
                 self::guard(static fn () => Enforcer::subscriberQuotas());
             }
@@ -166,7 +168,7 @@ final class CronService
         $rows = DB::rows(
             "SELECT c.id, c.name, c.low_stock,
                     (SELECT COUNT(*) FROM cards k WHERE k.category_id = c.id AND k.status = 'new' AND k.is_disabled = 0) AS available
-             FROM categories c WHERE c.is_active = 1 AND c.low_stock IS NOT NULL AND c.low_stock > 0"
+             FROM categories c WHERE c.is_active = 1 AND c.is_custom = 0 AND c.low_stock IS NOT NULL AND c.low_stock > 0"
         );
         foreach ($rows as $r) {
             if ((int) $r['available'] <= (int) $r['low_stock']) {

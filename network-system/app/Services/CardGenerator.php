@@ -90,7 +90,7 @@ final class CardGenerator
      */
     public static function generate(array $o, ?int $employeeId): array
     {
-        $category = DB::row('SELECT * FROM categories WHERE id = ?', [(int) $o['category_id']]);
+        $category = DB::row('SELECT * FROM categories WHERE id = ? AND is_custom = 0', [(int) $o['category_id']]);
         if (!$category) {
             throw new RuntimeException('الباقة غير موجودة.');
         }

@@ -11,6 +11,18 @@ $hourLabels = array_map(static fn ($r) => substr($r['h'], 11, 5), $online24);
 $hourUsers = array_map(static fn ($r) => (int) $r['users'], $online24);
 $dayLabels = array_map(static fn ($d) => substr($d, 5), array_keys($days));
 ?>
+<?php if (!empty($onboard)): ?>
+<div class="panel onboard-card">
+  <div class="onboard-main">
+    <span class="wizard-hero-icon"><?= icon('router') ?></span>
+    <div>
+      <div class="wizard-hero-title">اربط جهاز MikroTik بـ 3 خطوات</div>
+      <div class="onboard-steps"><span><?= icon('circle-dot', 'icon-sm') ?>اسم الجهاز</span><span><?= icon('circle-dot', 'icon-sm') ?>أمر واحد في Terminal</span><span><?= icon('circle-dot', 'icon-sm') ?>متابعة حية حتى يجهز للكروت</span></div>
+    </div>
+  </div>
+  <a class="btn btn-primary btn-lg" href="<?= e(url('/routers/connect')) ?>"><?= icon('link') ?>ابدأ الربط</a>
+</div>
+<?php endif; ?>
 <?php if ($cronStale && can('settings.manage')): ?>
 <div class="notice notice-warning mb-3"><?= icon('clock') ?><div><div class="notice-title">المهمة المجدولة لا تعمل بانتظام</div>
   المزامنة التلقائية مع أجهزة MikroTik متوقفة. <a href="<?= e(url('/settings', ['tab' => 'cron'])) ?>">إعداد المهمة المجدولة</a></div></div>

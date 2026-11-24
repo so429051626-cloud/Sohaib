@@ -67,7 +67,7 @@ final class EmployeeController extends Controller
                 'role_preset'   => $data['role_preset'],
                 'router_scope'  => $data['router_scope'],
                 'status'        => $data['status'],
-                'theme'         => 'system',
+                'theme'         => 'light',
                 'created_at'    => now(),
             ]);
             $this->syncAccess($id, $request, $data['router_scope']);

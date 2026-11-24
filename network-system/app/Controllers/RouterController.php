@@ -185,7 +185,15 @@ final class RouterController extends Controller
     public function destroy(Request $request, int $id): Response
     {
         $router = $this->findRouter($id);
+        // معالج ربط لم يكتمل: يُلغى رمزه، ويُحذف نفقه الذي أنشأه المعالج ولم يُستخدم
+        $connect = \App\Services\RouterConnect::state($id);
         DB::delete('routers', 'id = ?', [$id]);
+        if ($connect !== null) {
+            \App\Services\RouterConnect::forget($id);
+            if (empty($connect['ready_at']) && !empty($connect['tunnel_id'])) {
+                \App\Services\Tunnel::delete((int) $connect['tunnel_id']);
+            }
+        }
         Audit::log('router.delete', 'حذف جهاز MikroTik ' . $router['name'], 'router', $id);
         return $this->ok('تم حذف جهاز MikroTik من النظام.', '/routers');
     }
@@ -325,7 +333,7 @@ final class RouterController extends Controller
             case 'import':
                 $out['hsProfiles'] = RouterImport::hotspotProfiles($gw);
                 $out['pppProfiles'] = RouterImport::pppProfiles($gw);
-                $out['categories'] = DB::pairs('SELECT id, name FROM categories ORDER BY sort, name');
+                $out['categories'] = DB::pairs('SELECT id, name FROM categories WHERE is_custom = 0 ORDER BY sort, name');
                 $out['plans'] = DB::pairs('SELECT id, name FROM plans ORDER BY sort, name');
                 break;
             case 'tools':

@@ -44,6 +44,7 @@ $hidden = static function (array $filters, array $skip = []): string {
       <select class="input" id="category" name="category">
         <option value="">الكل</option>
         <?php foreach ($categories as $id => $name): ?><option value="<?= (int) $id ?>"<?= selected($filters['category'], $id) ?>><?= e($name) ?></option><?php endforeach; ?>
+        <?php if (!empty($hasAccounts)): ?><option value="custom"<?= selected($filters['category'], 'custom') ?>>الحسابات الخاصة</option><?php endif; ?>
       </select>
     </div>
     <div class="field">

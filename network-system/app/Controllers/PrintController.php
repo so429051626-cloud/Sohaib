@@ -26,8 +26,8 @@ final class PrintController extends Controller
         $selection = (array) Session::get('print_selection', []);
         return view('print/index', [
             'templates' => $templates,
-            'batches' => DB::rows('SELECT b.id, b.name, (SELECT COUNT(*) FROM cards k WHERE k.batch_id = b.id) AS cards, (SELECT COUNT(*) FROM cards k WHERE k.batch_id = b.id AND k.printed_at IS NULL) AS unprinted FROM batches b ORDER BY b.id DESC LIMIT 200'),
-            'categories' => DB::rows("SELECT c.id, c.name, (SELECT COUNT(*) FROM cards k WHERE k.category_id = c.id AND k.status = 'new' AND k.printed_at IS NULL AND k.is_disabled = 0) AS unprinted FROM categories c ORDER BY c.sort, c.name"),
+            'batches' => DB::rows('SELECT b.id, b.name, (SELECT COUNT(*) FROM cards k WHERE k.batch_id = b.id) AS cards, (SELECT COUNT(*) FROM cards k WHERE k.batch_id = b.id AND k.printed_at IS NULL) AS unprinted FROM batches b WHERE b.source <> \'custom\' ORDER BY b.id DESC LIMIT 200'),
+            'categories' => DB::rows("SELECT c.id, c.name, (SELECT COUNT(*) FROM cards k WHERE k.category_id = c.id AND k.status = 'new' AND k.printed_at IS NULL AND k.is_disabled = 0) AS unprinted FROM categories c WHERE c.is_custom = 0 ORDER BY c.sort, c.name"),
             'selection' => $request->str('source') === 'selection' ? $selection : [],
             'request' => $request,
         ]);
@@ -128,7 +128,7 @@ final class PrintController extends Controller
             'template' => $template,
             'design' => json_decode((string) $template['design'], true) ?: PrintTemplates::defaultDesign(),
             'sample' => PrintTemplates::sample(),
-            'categories' => DB::pairs('SELECT id, name FROM categories ORDER BY sort, name'),
+            'categories' => DB::pairs('SELECT id, name FROM categories WHERE is_custom = 0 ORDER BY sort, name'),
             'logo' => (string) Settings::get('general.logo', ''),
         ]);
     }

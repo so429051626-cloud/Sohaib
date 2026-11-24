@@ -44,7 +44,6 @@ final class Kernel
             . 'body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;background:#f4f6fb;color:#1b2540}'
             . '.c{text-align:center;padding:32px}.s{width:54px;height:54px;margin:0 auto 22px;border-radius:50%;border:4px solid #d8e0f3;border-top-color:#2453d6;animation:r 1s linear infinite}'
             . 'h1{font-size:20px;margin:0 0 8px}p{margin:0;color:#64708c;font-size:14.5px}@keyframes r{to{transform:rotate(360deg)}}'
-            . '@media(prefers-color-scheme:dark){body{background:#0e1424;color:#e8ecf7}p{color:#9aa6c3}.s{border-color:#24304f;border-top-color:#5383ff}}'
             . '</style></head><body><div class="c"><div class="s"></div><h1>جارٍ تحديث النظام</h1><p>يعود خلال لحظات.</p></div></body></html>';
         return new Response($html, 503, $headers + ['Content-Type' => 'text/html; charset=utf-8']);
     }

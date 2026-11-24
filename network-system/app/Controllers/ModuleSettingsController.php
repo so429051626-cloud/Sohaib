@@ -44,6 +44,7 @@ final class ModuleSettingsController extends Controller
                 'hotspot.fallback'           => ['bool', 'الدخول المباشر عند تعذّر الوصول للنظام'],
                 'hotspot.timeout'            => ['required|int|between:2,30', 'مهلة الاتصال بالنظام'],
                 'hotspot.allow_unsold'       => ['bool', 'السماح بالكروت غير المباعة'],
+                'hotspot.local_users'        => ['bool', 'دخول مستخدمي MikroTik المحليين'],
             ],
         ],
     ];

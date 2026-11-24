@@ -421,7 +421,7 @@ final class BotTools
                     $contact[$label] = $v;
                 }
             }
-            $cards = DB::rows('SELECT * FROM categories WHERE is_active = 1 AND show_on_hotspot = 1 ORDER BY sort, price LIMIT 30');
+            $cards = DB::rows('SELECT * FROM categories WHERE is_active = 1 AND show_on_hotspot = 1 AND is_custom = 0 ORDER BY sort, price LIMIT 30');
             $plans = DB::rows('SELECT * FROM plans WHERE is_active = 1 ORDER BY sort, price LIMIT 30');
             $causes = ['unknown' => 'غير معروف بعد', 'power' => 'انقطاع كهرباء', 'fault' => 'عطل', 'damage' => 'أضرار', 'maintenance' => 'صيانة'];
             $outages = DB::rows('SELECT o.*, a.name AS area FROM outages o LEFT JOIN areas a ON a.id = o.area_id WHERE o.ended_at IS NULL ORDER BY o.started_at DESC LIMIT 10');

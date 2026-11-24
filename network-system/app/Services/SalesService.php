@@ -22,7 +22,7 @@ final class SalesService
         if (!in_array($type, ['direct', 'distributor'], true)) {
             throw new RuntimeException('نوع البيع غير صالح.');
         }
-        $category = DB::row('SELECT * FROM categories WHERE id = ?', [$categoryId]);
+        $category = DB::row('SELECT * FROM categories WHERE id = ? AND is_custom = 0', [$categoryId]);
         if (!$category) {
             throw new RuntimeException('الباقة غير موجودة.');
         }

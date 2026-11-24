@@ -488,7 +488,8 @@ final class ReportController extends Controller
         $rows = array_map(static fn ($r) => [
             $r['name'], (int) $r['gen'], (int) $r['act'], (int) $r['avail'], (int) $r['sold'], (int) $r['active'], (int) $r['ended'], (int) $r['total'],
         ], DB::rows(
-            "SELECT c.name,
+            // باقات الكروت، ثم سطر واحد يجمع الحسابات الخاصة (لكل حساب باقة مخفية)
+            "(SELECT c.name, 0 AS custom, c.sort AS s1, c.price AS s2,
                     COALESCE(SUM(k.created_at BETWEEN ? AND ?), 0) AS gen,
                     COALESCE(SUM(k.first_login_at BETWEEN ? AND ?), 0) AS act,
                     COALESCE(SUM(k.status = 'new' AND k.is_disabled = 0), 0) AS avail,
@@ -496,14 +497,26 @@ final class ReportController extends Controller
                     COALESCE(SUM(k.status = 'active'), 0) AS active,
                     COALESCE(SUM(k.status IN ('expired','depleted')), 0) AS ended,
                     COUNT(k.id) AS total
-             FROM categories c LEFT JOIN cards k ON k.category_id = c.id GROUP BY c.id, c.name ORDER BY c.sort, c.price, c.name",
-            [$f, $t, $f, $t]
+             FROM categories c LEFT JOIN cards k ON k.category_id = c.id
+             WHERE c.is_custom = 0 GROUP BY c.id, c.name, c.sort, c.price)
+             UNION ALL
+             (SELECT 'الحسابات الخاصة', 1, 0, 0,
+                    COALESCE(SUM(k.created_at BETWEEN ? AND ?), 0),
+                    COALESCE(SUM(k.first_login_at BETWEEN ? AND ?), 0),
+                    0,
+                    COALESCE(SUM(k.status = 'sold'), 0),
+                    COALESCE(SUM(k.status = 'active'), 0),
+                    COALESCE(SUM(k.status IN ('expired','depleted')), 0),
+                    COUNT(k.id)
+             FROM cards k JOIN categories c ON c.id = k.category_id WHERE c.is_custom = 1 HAVING COUNT(k.id) > 0)
+             ORDER BY custom, s1, s2, name",
+            [$f, $t, $f, $t, $f, $t, $f, $t]
         ));
         $batches = array_map(static fn ($r) => [$r['name'], $r['category'], $r['created_at'], (int) $r['quantity'], (int) $r['used'], (int) $r['printed']],
             DB::rows("SELECT b.name, c.name AS category, b.created_at, b.quantity,
                              (SELECT COUNT(*) FROM cards k WHERE k.batch_id = b.id AND k.first_login_at IS NOT NULL) AS used,
                              (SELECT COUNT(*) FROM cards k WHERE k.batch_id = b.id AND k.printed_at IS NOT NULL) AS printed
-                      FROM batches b JOIN categories c ON c.id = b.category_id WHERE b.created_at BETWEEN ? AND ? ORDER BY b.id DESC LIMIT 200", [$f, $t]));
+                      FROM batches b JOIN categories c ON c.id = b.category_id WHERE b.created_at BETWEEN ? AND ? AND b.source <> 'custom' ORDER BY b.id DESC LIMIT 200", [$f, $t]));
         $sum = static fn (array $p) => (int) array_sum($p);
         return [
             'stats' => [

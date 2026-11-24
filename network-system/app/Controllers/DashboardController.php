@@ -22,6 +22,12 @@ final class DashboardController extends Controller
 
     public function index(Request $request): Response
     {
+        // أول دخول بلا أي جهاز MikroTik: معالج «اربط جهازك بـ 3 خطوات» مرة واحدة، ثم بطاقة دائمة في اللوحة حتى يُربط جهاز
+        $onboard = can('routers.manage') && !DB::value('SELECT 1 FROM routers LIMIT 1');
+        if ($onboard && !is_prefetch() && !Settings::bool('onboarding.connect_seen')) {
+            Settings::set('onboarding.connect_seen', '1');
+            return redirect('/routers/connect');
+        }
         $this->scheduleCron();
         [$rScope, $rParams] = Auth::routerScope('r.id');
         [$sScope, $sParams] = Auth::routerScope('s.router_id', true);
@@ -110,7 +116,7 @@ final class DashboardController extends Controller
             "SELECT c.id, c.name, c.color, c.price, c.low_stock,
                     SUM(k.status = 'new' AND k.is_disabled = 0) AS available, SUM(k.status = 'sold') AS sold,
                     SUM(k.status = 'active') AS active
-             FROM categories c LEFT JOIN cards k ON k.category_id = c.id WHERE c.is_active = 1 GROUP BY c.id ORDER BY c.sort, c.price"
+             FROM categories c LEFT JOIN cards k ON k.category_id = c.id WHERE c.is_active = 1 AND c.is_custom = 0 GROUP BY c.id ORDER BY c.sort, c.price"
         );
         $recent = DB::rows(
             "SELECT l.*, r.name AS router_name FROM login_log l LEFT JOIN routers r ON r.id = l.router_id
@@ -131,7 +137,7 @@ final class DashboardController extends Controller
         $cronStale = !CronService::managed() && CronService::isStale(300);
         $panelUrlMissing = trim((string) Settings::get('general.panel_url', '')) === '';
 
-        return view('dashboard/index', compact('kpi', 'routers', 'online24', 'days', 'stock', 'recent', 'topUsers', 'expiring', 'alerts', 'financial', 'cronStale', 'panelUrlMissing'));
+        return view('dashboard/index', compact('kpi', 'routers', 'online24', 'days', 'stock', 'recent', 'topUsers', 'expiring', 'alerts', 'financial', 'cronStale', 'panelUrlMissing', 'onboard'));
     }
 
     /** تحديث دوري للأرقام الحية */

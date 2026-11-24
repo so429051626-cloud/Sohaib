@@ -94,6 +94,8 @@ final class CardService
     public static function delete(array $ids): array
     {
         $ids = array_map('intval', $ids);
+        // باقات الحسابات الخاصة المحذوفة تُنظَّف بعد حذف كروتها
+        $custom = CustomAccounts::categoriesOf($ids);
         $job = self::applyToRouters($ids, 'remove', 'حذف كروت من أجهزة MikroTik');
         $n = 0;
         DB::transaction(static function () use ($ids, &$n) {
@@ -104,17 +106,24 @@ final class CardService
             // تحديث كميات الدفعات
             DB::query('UPDATE batches b SET quantity = (SELECT COUNT(*) FROM cards c WHERE c.batch_id = b.id)');
         });
+        if ($custom) {
+            CustomAccounts::purge($custom);
+        }
         Audit::log('cards.bulk', 'حذف ' . $n . ' كرت', 'card');
         return ['count' => $n, 'job' => $job];
     }
 
     public static function move(array $ids, int $categoryId): array
     {
-        $cat = DB::row('SELECT id, name FROM categories WHERE id = ?', [$categoryId]);
+        $cat = DB::row('SELECT id, name FROM categories WHERE id = ? AND is_custom = 0', [$categoryId]);
         if (!$cat) {
             throw new RuntimeException('الباقة غير موجودة.');
         }
-        $ids = array_map('intval', $ids);
+        // الحسابات الخاصة لها حدودها الخاصة: لا تُنقل إلى باقة (تُعدَّل من صفحتها)
+        $ids = array_values(array_diff(array_map('intval', $ids), array_values(CustomAccounts::categoriesOf($ids))));
+        if (!$ids) {
+            throw new RuntimeException('الحسابات الخاصة لا تُنقل إلى باقة؛ عدّل حدودها من صفحة الحسابات الخاصة.');
+        }
         $n = 0;
         foreach (array_chunk($ids, 1000) as $chunk) {
             $n += DB::query('UPDATE cards SET category_id = ?, updated_at = ? WHERE id IN (' . DB::in($chunk) . ')', array_merge([$categoryId, now()], $chunk))->rowCount();
